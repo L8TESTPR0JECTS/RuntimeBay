@@ -135,6 +135,7 @@ Private image pulls reuse Docker authentication. Sign in with `docker login <reg
 | [`scripts/`](scripts/) | Development, validation, native builds, and macOS packaging. |
 | [`examples/`](examples/) | Small API and worker for trying the runtime workflow. |
 | [`docs/`](docs/) | Architecture, current container behavior, appearance, and integration research. |
+| [`notes/`](notes/) | Product ideas and early thinking, including portable development environments. |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Dependency licenses and distribution notices. |
 
 ## Engineering character
