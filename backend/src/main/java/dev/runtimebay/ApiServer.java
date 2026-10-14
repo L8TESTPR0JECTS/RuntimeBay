@@ -64,7 +64,7 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }
         }
         if (path.equals("/api/status") && method.equals("GET")) {
-            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.3.0", "platform", "macOS")); return;
+            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.3.1", "platform", "macOS")); return;
         }
         if (path.equals("/api/projects")) {
             if (method.equals("GET")) { json(e, 200, runtimes.projects()); return; }
@@ -193,8 +193,8 @@ final class ApiServer implements AutoCloseable {
         if (!file.startsWith(webRoot) || !Files.isRegularFile(file) || !file.toRealPath().startsWith(webRoot))
             throw new ApiException(404, "File not found");
         String name = file.getFileName().toString();
-        String type = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "application/octet-stream";
-        e.getResponseHeaders().set("Content-Type", type + "; charset=utf-8");
+        String type = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : name.endsWith(".png") ? "image/png" : "application/octet-stream";
+        e.getResponseHeaders().set("Content-Type", type + (type.startsWith("text/") ? "; charset=utf-8" : ""));
         e.sendResponseHeaders(200, Files.size(file));
         Files.copy(file, e.getResponseBody());
     }

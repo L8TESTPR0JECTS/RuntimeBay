@@ -11,6 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        let resources = Bundle.main.resourceURL!
+        let bundledIcon = resources.appendingPathComponent("RuntimeBay.icns")
+        let iconURL = FileManager.default.fileExists(atPath: bundledIcon.path) ? bundledIcon : executableDirectory.appendingPathComponent("RuntimeBay.icns")
+        if let icon = NSImage(contentsOf: iconURL) { NSApp.applicationIconImage = icon }
         makeMenu()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 850),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -24,7 +29,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
         window.contentView = webView
-        webView.loadHTMLString("<html><body style='background:#f5f5ef;font:16px -apple-system;padding:60px;color:#122f35'><h1>Runtime Bay</h1><p>Preparing your workspace…</p></body></html>", baseURL: nil)
+        let webRoot = ProcessInfo.processInfo.environment["RUNTIMEBAY_WEB_ROOT"]
+        let logoURL = webRoot.map { URL(fileURLWithPath: $0).appendingPathComponent("assets/runtime-bay.png") }
+            ?? resources.appendingPathComponent("runtime-bay.png")
+        let logo = (try? Data(contentsOf: logoURL))?.base64EncodedString() ?? ""
+        webView.loadHTMLString("""
+            <!doctype html><html lang="en"><head><meta name="color-scheme" content="light dark"><style>
+            body{margin:0;min-height:100vh;display:grid;place-content:center;text-align:center;background:#f6f6f0;color:#203238;font:14px -apple-system}
+            .logo{display:block;width:96px;height:96px;margin:0 auto 22px;background:currentColor;-webkit-mask:url('data:image/png;base64,\(logo)') center/contain no-repeat;mask:url('data:image/png;base64,\(logo)') center/contain no-repeat;animation:spin 1.8s ease-in-out infinite}
+            h1{font-size:27px;font-weight:550;letter-spacing:-.6px;margin:0 0 10px}p{margin:0;opacity:.75}
+            @keyframes spin{to{transform:rotate(360deg)}}
+            @media(prefers-color-scheme:dark){body{background:#101615;color:#eaf1ef}}
+            @media(prefers-reduced-motion:reduce){.logo{animation:none}}
+            </style></head><body><main role="status"><span class="logo" aria-hidden="true"></span><h1>Runtime Bay</h1><p>Preparing your workspace…</p></main></body></html>
+            """, baseURL: nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.global(qos: .userInitiated).async { self.startBackend() }

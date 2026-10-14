@@ -40,7 +40,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | **Images & storage** | Pull Docker Hub or other registry images with progress/cancellation; inspect cached images, named volumes, and networks. |
 | **Hosts** | A separate page for local Docker contexts and remote SSH or verified mutual-TLS environments. |
 | **Appearance** | Twelve preset palettes with a live preview; Light, Dark, or System mode; preferences saved across app launches. |
-| **Native macOS shell** | AppKit window and menus, WKWebView, native folder selection, and appearance-aware window chrome. |
+| **Native macOS shell** | AppKit window and menus, WKWebView, native folder selection, appearance-aware window chrome, and the Runtime Bay app icon. |
 
 The first-use appearance picker offers Harbor, Ocean, Glacier, Forest, Sage, Amber, Copper, Clay, Rose, Plum, Violet, and Graphite. Reopen it through **Customize appearance** or **⌘,**. Palettes recolor the workspace, sidebar, surfaces, controls, and log viewer; status colors continue to communicate state.
 

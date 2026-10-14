@@ -54,6 +54,15 @@ class ApiServerTest {
             assertTrue(first.contains("403"));
         }
     }
+    @Test void servesLogoAsBinaryPngWithItsImageContentType() throws Exception {
+        Path assets = Files.createDirectory(temporary.resolve("web/assets"));
+        byte[] png = java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0V8AAAAASUVORK5CYII=");
+        Files.write(assets.resolve("runtime-bay.png"), png);
+        var response = client.send(request("/assets/runtime-bay.png").build(), HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, response.statusCode());
+        assertEquals("image/png", response.headers().firstValue("Content-Type").orElseThrow());
+        assertArrayEquals(png, response.body());
+    }
     @Test void createsAProjectAndServiceThroughApi() throws Exception {
         Gson gson = new Gson();
         JsonObject project = new JsonObject(); project.addProperty("name", "API test"); project.addProperty("path", temporary.toString());

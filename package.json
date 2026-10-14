@@ -1,6 +1,6 @@
 {
   "name": "runtime-bay",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "A macOS workspace for local development runtimes",
   "scripts": {

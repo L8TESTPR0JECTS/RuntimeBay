@@ -1,6 +1,6 @@
 <div class="app-shell" [attr.inert]="sheet() || appearance.open() ? '' : null">
   <aside class="sidebar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">r<span>b</span></span><div>Runtime Bay<small>A HOME FOR YOUR RUNTIMES</small></div></div>
+    <div class="brand"><span class="bay-logo brand-mark" aria-hidden="true"></span><div>Runtime Bay<small>A HOME FOR YOUR RUNTIMES</small></div></div>
     <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
     <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
     <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
@@ -15,7 +15,7 @@
       }
       @if (!projects().length) { <p class="sidebar-empty">Your projects will appear here.</p> }
     </nav>
-    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.0</small></div>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.1</small></div>
   </aside>
   <main>
     <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
@@ -34,7 +34,7 @@
         <div class="stat"><span>RUNNING NOW</span><strong class="teal">{{ running().toString().padStart(2, '0') }}</strong><small><i class="tiny-dot"></i> across your projects</small></div>
         <div class="workspace-note"><span class="note-icon">↗</span><div>One workspace.<br>A clearer head.<small>Start, inspect, restart. Stay here.</small></div></div>
       </div>
-      @if (loading()) { <div class="empty-state"><span class="loading-ring"></span><h2>Connecting to your workspace…</h2></div> }
+      @if (loading()) { <div class="empty-state" role="status"><span class="bay-logo loading-logo" aria-hidden="true"></span><h2>Connecting to your workspace…</h2></div> }
       @else if (!project()) {
         <section class="welcome"><div class="welcome-art" aria-hidden="true"><span>⌘</span><i></i><b></b></div><div class="eyebrow">LET’S CLEAR THE DECK</div><h2>Your next project starts here.</h2><p>Choose a folder, add the commands you already use,<br>and manage your services from one place.</p><button class="primary" (click)="openProject()">＋ Import your first project</button><small>Your files stay where they are.</small></section>
       } @else {
@@ -120,7 +120,7 @@
   <div class="appearance-backdrop" (click)="appearance.close()">
     <section class="appearance-drawer" role="dialog" aria-modal="true" aria-labelledby="appearance-title" (click)="$event.stopPropagation()">
       <div class="drawer-heading"><div><span class="eyebrow">MAKE YOURSELF AT HOME</span><h2 id="appearance-title">Your bay. Your style.</h2></div><button class="icon-button" aria-label="Close appearance settings" (click)="appearance.close()">×</button></div>
-      <div class="theme-preview" aria-hidden="true"><div class="preview-nav"><b>rb</b><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-bar"></div><strong>Runtime Bay</strong><span>A clearer workspace.</span><div class="preview-cards"><i></i><i></i></div><div class="preview-terminal">› Ready when you are.</div></div></div>
+      <div class="theme-preview" aria-hidden="true"><div class="preview-nav"><span class="bay-logo preview-logo"></span><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-bar"></div><strong>Runtime Bay</strong><span>A clearer workspace.</span><div class="preview-cards"><i></i><i></i></div><div class="preview-terminal">› Ready when you are.</div></div></div>
       <h3>Appearance</h3><div class="mode-options" role="group" aria-label="Appearance">
         <button [attr.aria-pressed]="appearance.preferences().appearance === 'light'" (click)="appearance.chooseMode('light')" [disabled]="appearance.loading()">☀ Light</button>
         <button [attr.aria-pressed]="appearance.preferences().appearance === 'dark'" (click)="appearance.chooseMode('dark')" [disabled]="appearance.loading()">☾ Dark</button>

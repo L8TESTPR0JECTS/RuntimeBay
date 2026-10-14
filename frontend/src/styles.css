@@ -78,20 +78,15 @@ a {
   font-weight:500
 }
 .brand-mark {
-  width:37px;
-  height:38px;
-  border:1px solid var(--muted);
-  border-radius:10px;
-  color:var(--line);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font:500 27px Georgia;
-  letter-spacing:-6px;
-  padding-right:5px
+  width:61px;
+  height:63px;
+  flex-shrink:0;
+  background:var(--nav-text)
 }
-.brand-mark span {
-  color:var(--muted)
+.bay-logo {
+  display:inline-block;
+  -webkit-mask:url('/assets/runtime-bay.png') center / contain no-repeat;
+  mask:url('/assets/runtime-bay.png') center / contain no-repeat
 }
 .import-shortcut {
   margin-top:38px;
@@ -863,16 +858,27 @@ footer span {
   font-weight:400;
   color:var(--muted)
 }
-.loading-ring {
+.loading-logo {
   display:inline-block;
-  border:2px solid var(--line);
-  border-top-color:var(--teal);
-  border-radius:50%;
-  width:25px;
-  height:25px;
-  animation:spin 1s linear infinite
+  width:44px;
+  height:44px;
+  background:var(--accent);
+  animation:logo-spin 1.8s cubic-bezier(.45,.1,.55,.9) infinite
 }
-@keyframes spin {
+.empty-state>.loading-logo {
+  margin-bottom:8px
+}
+.inline-loading {
+  display:flex;
+  align-items:center;
+  gap:10px
+}
+.inline-loading>.loading-logo {
+  width:24px;
+  height:24px;
+  flex-shrink:0
+}
+@keyframes logo-spin {
   to {
     transform:rotate(360deg)
   }
@@ -1088,13 +1094,6 @@ footer span {
 .brand small,.import-shortcut kbd,.sidebar-label,.sidebar-label span,.project-link-text small,.sidebar-empty,.sidebar-bottom>small,.chevron {
   color:var(--nav-muted)
 }
-.brand-mark {
-  border-color:var(--nav-line);
-  color:var(--nav-text)
-}
-.brand-mark span {
-  color:var(--nav-muted)
-}
 .import-shortcut,.project-link.selected,.project-link:hover {
   background:var(--nav-selected);
   color:var(--nav-text)
@@ -1256,9 +1255,10 @@ input,textarea,select {
   padding:16px 12px;
   color:var(--nav-text)
 }
-.preview-nav b {
-  font:20px Georgia;
-  letter-spacing:-4px
+.preview-logo {
+  width:30px;
+  height:30px;
+  background:var(--nav-text)
 }
 .preview-nav i {
   display:block;
