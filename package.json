@@ -1,0 +1,30 @@
+{
+  "name": "runtime-bay",
+  "version": "0.3.0",
+  "private": true,
+  "description": "A macOS workspace for local development runtimes",
+  "scripts": {
+    "build:web": "ng build",
+    "watch:web": "ng build --watch --configuration development",
+    "build": "bash scripts/build.sh",
+    "check": "bash scripts/check.sh",
+    "dev": "bash scripts/dev.sh",
+    "package:mac": "bash scripts/package-mac.sh",
+    "test:appearance": "node --test frontend/tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@angular/common": "21.2.25",
+    "@angular/compiler": "21.2.25",
+    "@angular/core": "21.2.25",
+    "@angular/forms": "21.2.25",
+    "@angular/platform-browser": "21.2.25",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "21.2.25",
+    "@angular/cli": "21.2.25",
+    "@angular/compiler-cli": "21.2.25",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+.cache/
+.angular/
+.build/
+dist/
+backend/target/
+.DS_Store
+*.log
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key

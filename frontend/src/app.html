@@ -1,0 +1,138 @@
+<div class="app-shell" [attr.inert]="sheet() || appearance.open() ? '' : null">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">r<span>b</span></span><div>Runtime Bay<small>A HOME FOR YOUR RUNTIMES</small></div></div>
+    <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
+    <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
+    <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
+    <div class="sidebar-label">WORKSPACE <span>{{ projects().length }}</span></div>
+    <nav aria-label="Projects">
+      @for (p of projects(); track p.id) {
+        <button class="project-link" [class.selected]="p.id === projectId() && view() === 'runtime'" (click)="selectProject(p.id)">
+          <span class="project-monogram">{{ p.name.slice(0, 2).toUpperCase() }}</span>
+          <span class="project-link-text">{{ p.name }}<small>{{ p.services.length }} {{ p.services.length === 1 ? 'service' : 'services' }}</small></span>
+          <span class="chevron">›</span>
+        </button>
+      }
+      @if (!projects().length) { <p class="sidebar-empty">Your projects will appear here.</p> }
+    </nav>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.0</small></div>
+  </aside>
+  <main>
+    <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
+    @if (view() === 'containers' || view() === 'hosts') {
+      <app-containers [session]="sessionToken" [projects]="projects()" [page]="view() === 'hosts' ? 'hosts' : 'containers'" (navigate)="view.set($event)"></app-containers>
+    } @else {
+    <div class="content">
+      @if (!connected() && !loading()) {
+        <div class="notice" role="alert">The local engine is disconnected. Reopen Runtime Bay to reconnect. <button (click)="refresh()">Retry</button></div>
+      }
+      @if (error()) { <div class="notice" role="alert">{{ error() }}<button aria-label="Dismiss error" (click)="error.set('')">×</button></div> }
+      <div class="page-title"><div><div class="eyebrow">YOUR LOCAL DEVELOPMENT, IN ORDER</div><h1>{{ project()?.name || 'A place for everything running.' }}</h1><p class="subtitle">{{ project()?.path || 'Bring your services together. Keep your flow.' }}</p></div><span class="title-symbol" aria-hidden="true">◒</span></div>
+      <div class="overview">
+        <div class="stat"><span>PROJECTS</span><strong>{{ projects().length.toString().padStart(2, '0') }}</strong><small>in your workspace</small></div>
+        <div class="stat"><span>SERVICES</span><strong>{{ serviceCount().toString().padStart(2, '0') }}</strong><small>ready to manage</small></div>
+        <div class="stat"><span>RUNNING NOW</span><strong class="teal">{{ running().toString().padStart(2, '0') }}</strong><small><i class="tiny-dot"></i> across your projects</small></div>
+        <div class="workspace-note"><span class="note-icon">↗</span><div>One workspace.<br>A clearer head.<small>Start, inspect, restart. Stay here.</small></div></div>
+      </div>
+      @if (loading()) { <div class="empty-state"><span class="loading-ring"></span><h2>Connecting to your workspace…</h2></div> }
+      @else if (!project()) {
+        <section class="welcome"><div class="welcome-art" aria-hidden="true"><span>⌘</span><i></i><b></b></div><div class="eyebrow">LET’S CLEAR THE DECK</div><h2>Your next project starts here.</h2><p>Choose a folder, add the commands you already use,<br>and manage your services from one place.</p><button class="primary" (click)="openProject()">＋ Import your first project</button><small>Your files stay where they are.</small></section>
+      } @else {
+        <section class="services-section">
+          <div class="section-heading"><div><h2>Services <span class="count">{{ project()!.services.length }}</span></h2><p>The moving parts of your project.</p></div><div class="section-actions">
+            @if (project()!.services.length) {
+              <button class="text-button" (click)="all('stop')" [disabled]="!connected() || pending().length > 0">Stop all</button>
+              <button class="secondary" (click)="all('start')" [disabled]="!connected() || pending().length > 0">▷ Start all</button>
+            }
+            <button class="primary" (click)="openService()" [disabled]="!connected()">＋ Add service</button>
+          </div></div>
+          @if (!project()!.services.length) {
+            <div class="empty-services"><span aria-hidden="true">⌁</span><h3>Give your project a runtime.</h3><p>Add a server, a worker, or any command you run during development.</p><button class="secondary" (click)="openService()">Add your first service</button></div>
+          } @else {
+            <div class="service-grid">
+              @for (s of project()!.services; track s.id) {
+                <article class="service-card" [class.focused]="s.id === serviceId()">
+                  <button class="service-details" (click)="selectService(s.id)" [attr.aria-label]="'Inspect ' + s.name">
+                    <div class="service-card-top"><span class="service-icon" aria-hidden="true">{{ s.port ? '↔' : '⌁' }}</span><span class="status" [class.running]="s.state === 'running'" [class.failed]="s.state === 'failed'"><i></i>{{ s.state }}</span></div>
+                    <h3>{{ s.name }}</h3><code class="command" [title]="s.command">{{ s.command }}</code>
+                    <div class="service-meta"><span class="port-label" [class.port-live]="s.portInfo?.owners?.length" [title]="'Listening processes are shown below in the inspector'">{{ portLabel(s) }}</span><span>{{ elapsed(s) }}</span></div>
+                  </button>
+                  <div class="service-controls"><button class="inspect-button" (click)="selectService(s.id)">View logs <span>↗</span></button><div>
+                    @if (active(s)) {
+                      <button class="icon-button" aria-label="Restart service" title="Restart service" (click)="action(s, 'restart')" [disabled]="busy(s) || !connected()">↻</button>
+                      <button class="stop-button" (click)="action(s, 'stop')" [disabled]="busy(s) || !connected()">{{ busy(s) ? 'Working…' : '■ Stop' }}</button>
+                    } @else { <button class="start-button" (click)="action(s, 'start')" [disabled]="busy(s) || !connected()">{{ busy(s) ? 'Starting…' : '▷ Start' }}</button> }
+                  </div></div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+        @if (service(); as s) {
+          <section class="inspector"><div class="inspector-heading"><div><span class="eyebrow">RUNTIME INSPECTOR</span><h2>{{ s.name }} <span class="inspector-state">{{ s.pid ? 'PID ' + s.pid : s.state }}</span></h2></div><div class="section-actions"><button class="text-button" (click)="openService(s)" [disabled]="active(s) || busy(s)">Edit service</button><button class="text-button" (click)="askDelete()" [disabled]="active(s) || busy(s)" aria-label="Remove service">Remove</button></div></div>
+            @if (s.portInfo; as info) {
+              <div class="port-inspector"><span>TCP <strong>:{{ info.number }}</strong></span><span>{{ info.status === 'listening' ? 'Listening' : info.status === 'available' ? 'No listener detected' : 'Port inspection unavailable' }}</span>
+                @for (owner of info.owners; track owner.pid) { <span class="port-owner">{{ owner.command }} · PID {{ owner.pid }} <b>{{ owner.managed ? 'this service' : 'external' }}</b></span> }
+              </div>
+            }
+            <div class="terminal"><div class="terminal-toolbar"><div class="terminal-title"><span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>OUTPUT</span><span class="log-count">{{ logs().length }} lines</span></div><div class="terminal-actions"><input aria-label="Filter logs" placeholder="Filter output…" [ngModel]="logFilter()" (ngModelChange)="logFilter.set($event)"><button [class.enabled]="follow()" (click)="toggleFollow()">{{ follow() ? '↓ Following' : '↓ Follow' }}</button><button (click)="copyLogs()" [disabled]="!logs().length">Copy</button></div></div>
+              <div class="terminal-body" #logBody (scroll)="onLogScroll()" role="log" aria-label="Service output" tabindex="0">
+                @for (line of visibleLogs(); track line.sequence) { <div class="log-line" [class.stderr]="line.stream === 'stderr'" [class.system]="line.stream === 'system'"><time>{{ line.time | date:'HH:mm:ss' }}</time><span class="stream-label">{{ line.stream === 'system' ? 'bay' : line.stream === 'stderr' ? 'err' : 'out' }}</span><span class="log-message">{{ line.message }}</span></div> }
+                @if (!visibleLogs().length) { <div class="terminal-empty"><span>{{ logs().length ? 'No lines match this filter.' : 'Your service output will appear here.' }}</span>@if (!logs().length) { <small>Press Start to begin a run.</small> }</div> }
+              </div>
+            </div>
+            <div class="inspector-foot"><span>Directory <code>{{ s.directory }}</code></span><span>Up to 1,000 lines · refreshes every 1.5 seconds</span></div>
+          </section>
+        }
+      }
+      <footer>Less juggling. More building.<span>RUNTIME BAY</span></footer>
+    </div>
+    }
+  </main>
+</div>
+@if (sheet()) {
+  <div class="modal-backdrop" (click)="!saving() && sheet.set(null)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="dialog-title" (click)="$event.stopPropagation()">
+    <div class="modal-top"><span class="eyebrow">MAKE ROOM FOR YOUR WORK</span><button class="icon-button" aria-label="Close dialog" (click)="sheet.set(null)" [disabled]="saving()">×</button></div>
+    @if (sheet() === 'project') {
+      <h2 id="dialog-title">Import a project.</h2><p>Choose the folder where your project lives.</p><form (ngSubmit)="saveProject()">
+        <label>PROJECT FOLDER<div class="input-with-button"><input name="path" [(ngModel)]="projectForm.path" placeholder="/Users/you/Projects/my-app" required autofocus>@if (native()) { <button type="button" class="secondary" (click)="chooseFolder()">Choose…</button> }</div></label>
+        <label>PROJECT NAME<input name="name" [(ngModel)]="projectForm.name" placeholder="My project" maxlength="80"></label>
+        @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+        <div class="modal-footer"><small>Runtime Bay keeps your files in place.</small><button class="primary" type="submit" [disabled]="saving() || !projectForm.path">{{ saving() ? 'Importing…' : 'Import project' }}</button></div>
+      </form>
+    } @else if (sheet() === 'service') {
+      <h2 id="dialog-title">{{ editId ? 'Edit your service.' : 'Add a service.' }}</h2><p>A familiar command. A better place to run it.</p><form (ngSubmit)="saveService()">
+        <label>SERVICE NAME<input name="name" [(ngModel)]="serviceForm.name" placeholder="API server" maxlength="80" required autofocus></label>
+        <label>START COMMAND<textarea name="command" [(ngModel)]="serviceForm.command" placeholder="npm run dev" required rows="3" maxlength="4096"></textarea><small>Runs with your login shell environment using zsh.</small></label>
+        <div class="form-row"><label>DIRECTORY<input name="directory" [(ngModel)]="serviceForm.directory" placeholder="." required><small>Relative to the project folder.</small></label><label>TCP PORT <em>optional</em><input name="port" type="number" min="1" max="65535" [(ngModel)]="serviceForm.port" placeholder="3000"><small>Inspect who’s listening here.</small></label></div>
+        @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+        <div class="modal-footer"><small>Runs when you press Start, under your user account.</small><button class="primary" type="submit" [disabled]="saving() || !serviceForm.name || !serviceForm.command">{{ saving() ? 'Saving…' : editId ? 'Save changes' : 'Add service' }}</button></div>
+      </form>
+    } @else {
+      <h2 id="dialog-title">Remove {{ service()?.name }}?</h2><p>This removes its saved command and output from Runtime Bay. Your project files stay in place.</p>
+      @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+      <div class="modal-footer"><button class="secondary" (click)="sheet.set(null)" [disabled]="saving()">Keep service</button><button class="danger" (click)="deleteService()" [disabled]="saving()">{{ saving() ? 'Removing…' : 'Remove service' }}</button></div>
+    }
+  </section></div>
+}
+
+@if (appearance.open()) {
+  <div class="appearance-backdrop" (click)="appearance.close()">
+    <section class="appearance-drawer" role="dialog" aria-modal="true" aria-labelledby="appearance-title" (click)="$event.stopPropagation()">
+      <div class="drawer-heading"><div><span class="eyebrow">MAKE YOURSELF AT HOME</span><h2 id="appearance-title">Your bay. Your style.</h2></div><button class="icon-button" aria-label="Close appearance settings" (click)="appearance.close()">×</button></div>
+      <div class="theme-preview" aria-hidden="true"><div class="preview-nav"><b>rb</b><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-bar"></div><strong>Runtime Bay</strong><span>A clearer workspace.</span><div class="preview-cards"><i></i><i></i></div><div class="preview-terminal">› Ready when you are.</div></div></div>
+      <h3>Appearance</h3><div class="mode-options" role="group" aria-label="Appearance">
+        <button [attr.aria-pressed]="appearance.preferences().appearance === 'light'" (click)="appearance.chooseMode('light')" [disabled]="appearance.loading()">☀ Light</button>
+        <button [attr.aria-pressed]="appearance.preferences().appearance === 'dark'" (click)="appearance.chooseMode('dark')" [disabled]="appearance.loading()">☾ Dark</button>
+        <button [attr.aria-pressed]="appearance.preferences().appearance === 'system'" (click)="appearance.chooseMode('system')" [disabled]="appearance.loading()">▱ System</button>
+      </div><p class="appearance-note">System follows your Mac’s appearance.</p>
+      <h3>Color palette</h3><div class="palette-grid" role="group" aria-label="Color palette">
+        @for (palette of appearance.palettes; track palette.id) {
+          <button class="palette-option" [attr.aria-label]="palette.name + ' palette'" [attr.aria-pressed]="appearance.preferences().palette === palette.id" (click)="appearance.choosePalette(palette.id)" [disabled]="appearance.loading()"><span class="palette-swatch" [style.background]="appearance.swatch(palette)">@if (appearance.preferences().palette === palette.id) { <b>✓</b> }</span><span>{{ palette.name }}</span></button>
+        }
+      </div>
+      @if (appearance.error()) { <div class="notice" role="alert">{{ appearance.error() }}<button (click)="appearance.retry()">Retry</button></div> }
+      <div class="drawer-footer"><span role="status">{{ appearance.saving() ? 'Saving…' : appearance.error() ? 'Changes have not been saved' : 'Changes save automatically' }}</span><button class="primary" (click)="appearance.close()" [disabled]="appearance.loading()">Done</button></div>
+    </section>
+  </div>
+}

@@ -1,0 +1,17 @@
+export interface PortOwner { pid: number; command: string; managed: boolean }
+export interface PortInfo { number: number; status: 'available' | 'listening' | 'unknown'; owners: PortOwner[] }
+export interface Service {
+  id: string; name: string; command: string; directory: string; port: number | null;
+  state: 'idle' | 'starting' | 'running' | 'stopping' | 'stopped' | 'exited' | 'failed';
+  pid: number | null; exitCode: number | null; startedAt: string | null; portInfo: PortInfo | null;
+}
+export interface Project { id: string; name: string; path: string; services: Service[] }
+export interface LogEntry { sequence: number; time: string; stream: string; message: string }
+export interface LogResponse { entries: LogEntry[]; next: number; truncated: boolean }
+declare global {
+  interface Window {
+    runtimeBayNative?: boolean;
+    runtimeBaySession?: string;
+    webkit?: { messageHandlers: { runtimeBay: { postMessage(value: string | { action: string; mode: string }): void } } };
+  }
+}
