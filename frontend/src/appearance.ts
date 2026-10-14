@@ -1,4 +1,6 @@
 import { signal } from '@angular/core';
+import { LoadingScope } from './loading/loading-tasks';
+import { LoadingService } from './loading/loading.service';
 import { DEFAULT_PREFERENCES, isPreferences, Preferences, AppearanceMode, PALETTES, themeTokens, swatch } from './palettes';
 
 export class Appearance {
@@ -11,6 +13,7 @@ export class Appearance {
   error = signal('');
   private media = matchMedia('(prefers-color-scheme: dark)');
   private pending: Preferences | null = null;
+  private loadingTasks: LoadingScope;
   private disposed = false;
   private controller = new AbortController();
   private previousOverflow = '';
@@ -26,12 +29,13 @@ export class Appearance {
       else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
     }
   };
-  constructor(private session: string) {
+  constructor(private session: string, private loader: LoadingService) {
     this.apply();
     this.media.addEventListener('change', this.mediaListener);
     window.addEventListener('runtimebay:customize', this.menuListener);
     window.addEventListener('keydown', this.keyListener);
-    void this.load();
+    this.loadingTasks = this.loader.scope();
+    void this.loadingTasks.run('Restoring your appearance…', () => this.load());
   }
   private async api(method = 'GET', preferences?: Preferences): Promise<Preferences> {
     const response = await fetch('/api/preferences', { method, signal: this.controller.signal,
@@ -47,12 +51,17 @@ export class Appearance {
       const preferences = await this.api();
       if (this.disposed) return;
       this.preferences.set(preferences); this.apply();
-      if (!preferences.onboardingComplete) this.show();
+      if (!preferences.onboardingComplete) this.showAfterStartup();
     } catch (e) { if (!this.disposed) this.error.set((e as Error).message); }
     finally { this.loading.set(false); }
   }
+  private showAfterStartup() {
+    if (this.disposed) return;
+    if (this.loader.active) { setTimeout(() => this.showAfterStartup(), 50); return; }
+    this.show();
+  }
   show() {
-    if (this.open()) return;
+    if (this.open() || this.loader.active) return;
     this.previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.previousOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
     this.open.set(true);
@@ -92,7 +101,7 @@ export class Appearance {
     window.webkit?.messageHandlers.runtimeBay.postMessage({ action: 'appearance', mode: preferences.appearance });
   }
   destroy() {
-    this.disposed = true; this.controller.abort(); document.body.style.overflow = this.previousOverflow;
+    this.disposed = true; this.loadingTasks.close(); this.controller.abort(); document.body.style.overflow = this.previousOverflow;
     this.media.removeEventListener('change', this.mediaListener);
     window.removeEventListener('runtimebay:customize', this.menuListener);
     window.removeEventListener('keydown', this.keyListener);

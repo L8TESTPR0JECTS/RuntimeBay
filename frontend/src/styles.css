@@ -858,31 +858,6 @@ footer span {
   font-weight:400;
   color:var(--muted)
 }
-.loading-logo {
-  display:inline-block;
-  width:44px;
-  height:44px;
-  background:var(--accent);
-  animation:logo-spin 1.8s cubic-bezier(.45,.1,.55,.9) infinite
-}
-.empty-state>.loading-logo {
-  margin-bottom:8px
-}
-.inline-loading {
-  display:flex;
-  align-items:center;
-  gap:10px
-}
-.inline-loading>.loading-logo {
-  width:24px;
-  height:24px;
-  flex-shrink:0
-}
-@keyframes logo-spin {
-  to {
-    transform:rotate(360deg)
-  }
-}
 .notice {
   padding:11px 14px;
   border:1px solid var(--line);

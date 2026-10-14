@@ -1,10 +1,11 @@
-import { Component, computed, effect, signal, OnDestroy, ElementRef, ViewChild, provideZonelessChangeDetection } from '@angular/core';
+import { Component, inject, computed, effect, signal, OnDestroy, ElementRef, ViewChild, provideZonelessChangeDetection } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, LogEntry, LogResponse } from './types';
 import { Containers } from './containers';
 import { Appearance } from './appearance';
+import { LoadingService } from './loading/loading.service';
 
 const session = window.runtimeBaySession || new URLSearchParams(location.hash.slice(1)).get('session') || '';
 if (location.hash) history.replaceState(null, '', location.pathname);
@@ -15,7 +16,9 @@ if (location.hash) history.replaceState(null, '', location.pathname);
 })
 class App implements OnDestroy {
   view = signal<'runtime' | 'containers' | 'hosts'>('runtime');
-  readonly appearance = new Appearance(session);
+  readonly loader = inject(LoadingService);
+  private loadingTasks = this.loader.scope();
+  readonly appearance = new Appearance(session, this.loader);
   readonly sessionToken = session;
   projects = signal<Project[]>([]);
   projectId = signal<string | null>(null);
@@ -43,7 +46,7 @@ class App implements OnDestroy {
   editId: string | null = null;
   private after = 0;
   private selectionRevision = 0;
-  private polling = false;
+  private refreshPromise?: Promise<void>;
   private destroyed = false;
   private timer: ReturnType<typeof setInterval>;
   private controller = new AbortController();
@@ -56,6 +59,7 @@ class App implements OnDestroy {
     if (!this.projectForm.name) this.projectForm.name = path.split('/').filter(Boolean).at(-1) || 'Project';
   };
   private keyListener = (event: KeyboardEvent) => {
+    if (this.loader.active) return;
     if (event.key === 'Tab' && this.sheet()) {
       const controls = Array.from(document.querySelectorAll<HTMLElement>('.modal button:not([disabled]), .modal input:not([disabled]), .modal textarea:not([disabled])'));
       const first = controls[0], last = controls.at(-1);
@@ -78,11 +82,11 @@ class App implements OnDestroy {
     });
     window.addEventListener('runtimebay:folder', this.folderListener);
     window.addEventListener('keydown', this.keyListener);
-    void this.refresh();
+    void this.loadingTasks.run('Opening your workspace…', () => this.refresh());
     this.timer = setInterval(() => void this.refresh(), 1500);
   }
   ngOnDestroy() {
-    this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
+    this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
     window.removeEventListener('runtimebay:folder', this.folderListener);
     window.removeEventListener('keydown', this.keyListener);
   }
@@ -96,9 +100,13 @@ class App implements OnDestroy {
     if (!response.ok) throw new Error(value.error || 'Could not complete this operation');
     return value as T;
   }
-  async refresh() {
-    if (this.polling || this.destroyed) return;
-    this.polling = true;
+  refresh(): Promise<void> {
+    if (this.destroyed) return Promise.resolve();
+    if (!this.refreshPromise) this.refreshPromise = this.readWorkspace().finally(() => { this.refreshPromise = undefined; });
+    return this.refreshPromise;
+  }
+  refreshForeground() { return this.loadingTasks.run('Reconnecting to your workspace…', () => this.refresh()); }
+  private async readWorkspace() {
     try {
       const projects = await this.api<Project[]>('/projects');
       this.projects.set(projects); this.connected.set(true);
@@ -106,7 +114,7 @@ class App implements OnDestroy {
       const selected = this.service();
       if (selected) await this.refreshLogs(this.projectId()!, selected.id);
     } catch { if (!this.destroyed) this.connected.set(false); }
-    finally { this.loading.set(false); this.polling = false; }
+    finally { this.loading.set(false); }
   }
   private async refreshLogs(project: string, service: string) {
     const revision = this.selectionRevision;
@@ -127,20 +135,21 @@ class App implements OnDestroy {
     if (this.serviceId() === id) return;
     this.selectionRevision++;
     this.serviceId.set(id); this.after = 0; this.logs.set([]); this.logFilter.set('');
-    if (id && this.projectId()) void this.refreshLogs(this.projectId()!, id).catch(() => {});
+    if (id && this.projectId()) void this.loadingTasks.run('Loading service output…', () => this.refreshLogs(this.projectId()!, id)).catch(() => {});
   }
   active(service: Service) { return ['running', 'starting', 'stopping'].includes(service.state); }
   busy(service: Service) { return this.pending().includes(service.id) || service.state === 'starting' || service.state === 'stopping'; }
   async action(service: Service, action: 'start' | 'stop' | 'restart') {
     const project = this.project();
     if (!project || this.busy(service)) return;
+    const releaseLoading = this.loadingTasks.begin(`${action === 'start' ? 'Starting' : action === 'stop' ? 'Stopping' : 'Restarting'} ${service.name}…`);
     this.pending.update(ids => [...ids, service.id]); this.error.set('');
     this.selectService(service.id);
     try {
       await this.api(`/projects/${project.id}/services/${service.id}/${action}`, 'POST', {});
       await this.refresh();
     } catch (e) { this.error.set((e as Error).message); }
-    finally { this.pending.update(ids => ids.filter(id => id !== service.id)); }
+    finally { this.pending.update(ids => ids.filter(id => id !== service.id)); releaseLoading(); }
   }
   async all(action: 'start' | 'stop') {
     const services = this.project()?.services.filter(s => action === 'start' ? !this.active(s) : this.active(s)) || [];
@@ -156,16 +165,18 @@ class App implements OnDestroy {
     this.formError.set(''); this.sheet.set('service');
   }
   async saveProject() {
+    const releaseLoading = this.loadingTasks.begin('Importing project…');
     this.saving.set(true); this.formError.set('');
     try {
       const project = await this.api<Project>('/projects', 'POST', this.projectForm);
       this.projects.set(await this.api<Project[]>('/projects'));
       this.selectProject(project.id); this.sheet.set(null);
     } catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async saveService() {
     const project = this.project(); if (!project) return;
+    const releaseLoading = this.loadingTasks.begin('Saving service…');
     this.saving.set(true); this.formError.set('');
     try {
       const service = await this.api<Service>(`/projects/${project.id}/services${this.editId ? '/' + this.editId : ''}`,
@@ -173,17 +184,18 @@ class App implements OnDestroy {
       this.projects.set(await this.api<Project[]>('/projects'));
       this.selectService(service.id); this.sheet.set(null);
     } catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async deleteService() {
     const project = this.project(), service = this.service(); if (!project || !service) return;
+    const releaseLoading = this.loadingTasks.begin('Removing service…');
     this.saving.set(true); this.formError.set('');
     try {
       await this.api(`/projects/${project.id}/services/${service.id}`, 'DELETE');
       this.projects.set(await this.api<Project[]>('/projects'));
       this.selectService(this.project()?.services[0]?.id || null); this.sheet.set(null);
     } catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   askDelete() { this.formError.set(''); this.sheet.set('delete'); }
   portLabel(service: Service) {

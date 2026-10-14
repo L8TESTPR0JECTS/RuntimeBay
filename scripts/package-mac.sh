@@ -6,6 +6,7 @@ runtimebay_app="$PWD/dist/Runtime Bay.app"
 mkdir -p "$runtimebay_app/Contents/MacOS" "$runtimebay_app/Contents/Resources"
 cp .build/RuntimeBay "$runtimebay_app/Contents/MacOS/RuntimeBay"
 cp .build/runtimebay-launcher backend/target/runtimebay-backend.jar "$runtimebay_app/Contents/Resources/"
+cp .build/loading-startup.js .build/loading.css "$runtimebay_app/Contents/Resources/"
 cp .build/RuntimeBay.icns "$runtimebay_app/Contents/Resources/"
 cp frontend/src/assets/runtime-bay.png "$runtimebay_app/Contents/Resources/"
 cp LICENSE THIRD_PARTY_NOTICES.md "$runtimebay_app/Contents/Resources/"
@@ -29,8 +30,8 @@ cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>RuntimeBay</string>
 <key>CFBundleIconFile</key><string>RuntimeBay.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.1</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>0.3.2</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSHumanReadableCopyright</key><string>Runtime Bay contributors</string>

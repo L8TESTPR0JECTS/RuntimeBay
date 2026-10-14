@@ -6,6 +6,7 @@ Runtime Bay's own source is MIT licensed. The Java backend and Angular interface
 | --- | --- | --- |
 | Angular | MIT | https://github.com/angular/angular |
 | RxJS | Apache-2.0 | https://github.com/ReactiveX/rxjs |
+| GSAP 3.15.0 | [Standard “No Charge” GSAP License](https://gsap.com/standard-license/) | https://github.com/greensock/GSAP |
 | tslib | 0BSD | https://github.com/microsoft/tslib |
 | Gson | Apache-2.0 | https://github.com/google/gson |
 | Error Prone annotations (Gson dependency) | Apache-2.0 | https://github.com/google/error-prone |
@@ -16,3 +17,5 @@ Angular's build emits extracted frontend licenses. The macOS packaging script co
 JDK provenance depends on the JDK used to build the package. Check that runtime's own notices before publishing a release. Build and test tools (including Maven, TypeScript, and JUnit) are not part of the shipped application.
 
 T3 Code, Bruno, Postman, Codex, and Claude remain integration candidates and are not bundled. Portainer's environment/container workflow informed this version; its source is not copied or bundled. Docker CLI is an optional user-installed executable with its own licensing.
+
+GSAP is distributed under its own Standard “No Charge” license, not Runtime Bay’s MIT license. Its copyright and license headers are retained in both Angular’s extracted notices and the bundled native startup script. The license permits use subject to its terms and includes restrictions on competing visual animation builders; see the linked upstream license.

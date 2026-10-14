@@ -1,10 +1,13 @@
-import { Component, Input, Output, EventEmitter, OnChanges, OnInit, OnDestroy, signal, computed, effect } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, OnInit, OnDestroy, inject, signal, computed, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LoadingService } from './loading/loading.service';
 import { Project } from './types';
 import { DockerEnvironment, DockerDiscovery, DockerContainer, DockerOverview, DockerInventory, DockerDetails, DockerOperation } from './docker-types';
 
 @Component({ selector: 'app-containers', standalone: true, imports: [FormsModule], templateUrl: './containers.html' })
 export class Containers implements OnInit, OnDestroy, OnChanges {
+  private loader = inject(LoadingService);
+  private loadingTasks = this.loader.scope();
   @Input() session = '';
   @Input() page: 'containers' | 'hosts' = 'containers';
   @Output() navigate = new EventEmitter<'containers' | 'hosts'>();
@@ -39,13 +42,14 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   private modalHost: DockerEnvironment | null = null;
   private removeTarget: DockerContainer | null = null;
   private timer?: ReturnType<typeof setInterval>;
-  private polling = false;
+  private refreshPromise?: Promise<void>;
   private disposed = false;
   private revision = 0;
   private detailsRevision = 0;
   private controller = new AbortController();
   private inventoryAt = 0;
   private keyListener = (event: KeyboardEvent) => {
+    if (this.loader.active) return;
     if (event.key === 'Escape' && !this.saving()) this.modal.set(null);
     if (event.key === 'Tab' && this.modal()) {
       const controls = Array.from(document.querySelectorAll<HTMLElement>('.dock-modal button:not([disabled]), .dock-modal input:not([disabled]), .dock-modal textarea:not([disabled]), .dock-modal select:not([disabled])'));
@@ -57,7 +61,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   constructor() {
     effect(() => { if (this.modal()) setTimeout(() => (document.querySelector<HTMLElement>('.dock-modal input, .dock-modal textarea') || document.querySelector<HTMLElement>('.dock-modal button'))?.focus(), 0); });
   }
-  ngOnChanges() { if (this.discovery() && this.page === 'containers') void this.refresh(); }
+  ngOnChanges(changes: SimpleChanges) { if (changes['page'] && this.discovery() && this.page === 'containers') void this.refresh(true); }
   viewContainers(name: string) { this.selectHost(name); this.navigate.emit('containers'); }
   ngOnInit() {
     window.addEventListener('keydown', this.keyListener);
@@ -66,7 +70,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     }).catch(() => {});
     void this.loadHosts(); this.timer = setInterval(() => void this.refresh(), 5000);
   }
-  ngOnDestroy() { this.disposed = true; this.controller.abort(); if (this.timer) clearInterval(this.timer); window.removeEventListener('keydown', this.keyListener); }
+  ngOnDestroy() { this.loadingTasks.close(); this.disposed = true; this.controller.abort(); if (this.timer) clearInterval(this.timer); window.removeEventListener('keydown', this.keyListener); }
   private async api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     const response = await fetch('/api/docker' + path, { method, signal: this.controller.signal, headers: { Authorization: 'Bearer ' + this.session, ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const value = await response.json(); if (!response.ok) throw new Error(value.error || 'Docker operation failed'); return value as T;
@@ -75,6 +79,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   private endpoint(host: DockerEnvironment) { return '?endpoint=' + encodeURIComponent(host.endpoint); }
   async loadHosts() {
     if (this.refreshingHosts()) return;
+    const releaseLoading = this.loadingTasks.begin('Finding your Docker hosts…');
     this.refreshingHosts.set(true);
     try {
       const discovered = await this.api<DockerDiscovery>('/environments');
@@ -86,16 +91,22 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
         this.selectHost(locals.find(h => h.current)?.name || locals[0]?.name || '');
       } else void this.refresh();
     } catch (e) { if (!this.disposed) this.error.set((e as Error).message); }
-    finally { this.refreshingHosts.set(false); }
+    finally { this.refreshingHosts.set(false); releaseLoading(); }
   }
   selectHost(name: string) {
     this.revision++; this.detailsRevision++; this.hostName.set(name); this.overview.set(null); this.inventory.set(null); this.details.set(null); this.selectedId.set(''); this.error.set(''); this.detailError.set(''); this.filter.set(''); this.inventoryAt = 0;
-    void this.refresh();
+    void this.refresh(true);
   }
-  async refresh() {
-    if (this.polling || this.disposed) return;
+  refresh(foreground = false): Promise<void> {
+    const work = () => {
+      if (!this.refreshPromise) this.refreshPromise = this.refreshOnce().finally(() => { this.refreshPromise = undefined; });
+      return this.refreshPromise;
+    };
+    return foreground && this.page === 'containers' ? this.loadingTasks.run(`Loading ${this.hostName() || 'containers'}…`, work) : work();
+  }
+  private async refreshOnce() {
+    if (this.disposed) return;
     const host = this.host(), revision = this.revision;
-    this.polling = true;
     if (!this.overview() && host) this.loading.set(true);
     try {
       const operation = this.operation();
@@ -114,11 +125,11 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
       }
       if (this.selectedId() && this.tab() === 'containers') await this.loadDetails(host, this.selectedId());
     } catch (e) { if (revision === this.revision && !this.disposed) { this.error.set((e as Error).message); this.overview.set(null); this.details.set(null); } }
-    finally { this.loading.set(false); this.polling = false; if (revision !== this.revision && !this.disposed) void this.refresh(); }
+    finally { this.loading.set(false); if (revision !== this.revision && !this.disposed) await this.refreshOnce(); }
   }
   async selectContainer(container: DockerContainer) {
     this.detailsRevision++; this.selectedId.set(container.id); this.details.set(null); this.detailError.set('');
-    const host = this.host(); if (host) await this.loadDetails(host, container.id);
+    const host = this.host(); if (host) await this.loadingTasks.run('Loading container details…', () => this.loadDetails(host, container.id));
   }
   private async loadDetails(host: DockerEnvironment, id: string) {
     const revision = this.detailsRevision;
@@ -127,13 +138,14 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
       if (revision === this.detailsRevision && this.hostName() === host.name && this.selectedId() === id) { this.details.set(details); this.detailError.set(''); }
     } catch (e) { if (revision === this.detailsRevision) this.detailError.set((e as Error).message); }
   }
-  selectTab(tab: 'containers' | 'images' | 'storage') { this.tab.set(tab); void this.refresh(); }
+  selectTab(tab: 'containers' | 'images' | 'storage') { this.tab.set(tab); void this.refresh(true); }
   async action(container: DockerContainer, action: 'start' | 'stop' | 'restart' | 'pause' | 'unpause' | 'remove', target?: DockerEnvironment) {
     const host = target || this.host(); if (!host || this.pending().includes(container.id)) return;
+    const releaseLoading = this.loadingTasks.begin(`Updating ${container.name}…`);
     this.pending.update(ids => [...ids, container.id]); this.error.set('');
     try { await this.api(this.path(host) + '/containers/' + container.id + '/' + action, 'POST', { endpoint: host.endpoint }); if (host.name === this.hostName()) await this.refresh(); }
     catch (e) { this.error.set((e as Error).message); throw e; }
-    finally { this.pending.update(ids => ids.filter(id => id !== container.id)); }
+    finally { this.pending.update(ids => ids.filter(id => id !== container.id)); releaseLoading(); }
   }
   runAction(container: DockerContainer, action: 'start' | 'stop' | 'restart' | 'pause' | 'unpause') { void this.action(container, action).catch(() => {}); }
   openModal(type: 'host' | 'create' | 'pull', image = '') {
@@ -148,19 +160,22 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   targetEndpoint() { return this.modalHost?.endpoint || ''; }
   async removeContainer() {
     if (!this.removeTarget || !this.modalHost) return;
+    const releaseLoading = this.loadingTasks.begin('Removing container…');
     this.saving.set(true);
     try { await this.action(this.removeTarget, 'remove', this.modalHost); this.modal.set(null); }
     catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async addHost() {
+    const releaseLoading = this.loadingTasks.begin('Adding remote host…');
     this.saving.set(true); this.formError.set('');
     try { const host = await this.api<DockerEnvironment>('/environments', 'POST', this.hostForm); await this.loadHosts(); this.selectHost(host.name); this.modal.set(null); }
     catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async createContainer() {
     const host = this.modalHost; if (!host) return;
+    const releaseLoading = this.loadingTasks.begin('Creating container…');
     this.saving.set(true); this.formError.set('');
     try {
       const f = this.createForm;
@@ -180,19 +195,22 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
       }});
       this.selectedId.set(result.id); this.tab.set('containers'); this.modal.set(null); await this.refresh();
     } catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async startPull() {
     const host = this.modalHost; if (!host) return;
+    const releaseLoading = this.loadingTasks.begin('Starting image pull…');
     this.saving.set(true); this.formError.set('');
     try { this.operation.set(await this.api<DockerOperation>(this.path(host) + '/images/pull', 'POST', { endpoint: host.endpoint, image: this.pullImage })); this.modal.set(null); void this.refresh(); }
     catch (e) { this.formError.set((e as Error).message); }
-    finally { this.saving.set(false); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   async cancelPull() {
     const operation = this.operation(); if (!operation) return;
+    const releaseLoading = this.loadingTasks.begin('Cancelling image pull…');
     try { this.operation.set(await this.api<DockerOperation>('/operations/' + operation.id + '/cancel', 'POST', {})); }
     catch (e) { this.error.set((e as Error).message); }
+    finally { releaseLoading(); }
   }
   projectName(id: string) { return this.projects.find(p => p.id === id)?.name || ''; }
   imageName(repository: string, tag: string) { return repository === '<none>' ? '' : repository + (tag === '<none>' ? '' : ':' + tag); }

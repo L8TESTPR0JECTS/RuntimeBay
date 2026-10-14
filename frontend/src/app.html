@@ -15,7 +15,7 @@
       }
       @if (!projects().length) { <p class="sidebar-empty">Your projects will appear here.</p> }
     </nav>
-    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.1</small></div>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.2</small></div>
   </aside>
   <main>
     <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
@@ -24,7 +24,7 @@
     } @else {
     <div class="content">
       @if (!connected() && !loading()) {
-        <div class="notice" role="alert">The local engine is disconnected. Reopen Runtime Bay to reconnect. <button (click)="refresh()">Retry</button></div>
+        <div class="notice" role="alert">The local engine is disconnected. Reopen Runtime Bay to reconnect. <button (click)="refreshForeground()">Retry</button></div>
       }
       @if (error()) { <div class="notice" role="alert">{{ error() }}<button aria-label="Dismiss error" (click)="error.set('')">×</button></div> }
       <div class="page-title"><div><div class="eyebrow">YOUR LOCAL DEVELOPMENT, IN ORDER</div><h1>{{ project()?.name || 'A place for everything running.' }}</h1><p class="subtitle">{{ project()?.path || 'Bring your services together. Keep your flow.' }}</p></div><span class="title-symbol" aria-hidden="true">◒</span></div>
@@ -34,7 +34,7 @@
         <div class="stat"><span>RUNNING NOW</span><strong class="teal">{{ running().toString().padStart(2, '0') }}</strong><small><i class="tiny-dot"></i> across your projects</small></div>
         <div class="workspace-note"><span class="note-icon">↗</span><div>One workspace.<br>A clearer head.<small>Start, inspect, restart. Stay here.</small></div></div>
       </div>
-      @if (loading()) { <div class="empty-state" role="status"><span class="bay-logo loading-logo" aria-hidden="true"></span><h2>Connecting to your workspace…</h2></div> }
+      @if (loading()) { <div class="empty-state" role="status"><h2>Connecting to your workspace…</h2></div> }
       @else if (!project()) {
         <section class="welcome"><div class="welcome-art" aria-hidden="true"><span>⌘</span><i></i><b></b></div><div class="eyebrow">LET’S CLEAR THE DECK</div><h2>Your next project starts here.</h2><p>Choose a folder, add the commands you already use,<br>and manage your services from one place.</p><button class="primary" (click)="openProject()">＋ Import your first project</button><small>Your files stay where they are.</small></section>
       } @else {

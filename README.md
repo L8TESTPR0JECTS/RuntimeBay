@@ -74,7 +74,7 @@ The native host starts a Java backend on a random loopback port and supplies a p
 
 Docker actions use explicit contexts and endpoint checks. Runtime Bay reuses Docker's credential helper, SSH configuration, keys, and host verification. It does not collect registry passwords or install a remote agent. Docker Hub stores images; Docker engines run containers.
 
-Read the [architecture](docs/architecture.md), [container and remote-host guide](docs/containers.md), and [appearance guide](docs/appearance.md) for details.
+Read the [architecture](docs/architecture.md), [container and remote-host guide](docs/containers.md), [appearance guide](docs/appearance.md), and [shared loading behavior](docs/loading.md) for details.
 
 ## Run locally
 
@@ -177,6 +177,7 @@ Third-party software retains its own license:
 | Component | License |
 | --- | --- |
 | Angular | MIT |
+| GSAP | [Standard “No Charge” GSAP License](https://gsap.com/standard-license/) |
 | RxJS | Apache-2.0 |
 | tslib | 0BSD |
 | Gson and Error Prone annotations | Apache-2.0 |

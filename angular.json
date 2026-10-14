@@ -7,7 +7,7 @@
       "builder": "@angular/build:application",
       "options": {
         "outputPath": "dist/web", "index": "frontend/src/index.html", "browser": "frontend/src/main.ts",
-        "tsConfig": "frontend/tsconfig.app.json", "styles": ["frontend/src/styles.css", "frontend/src/containers.css"],
+        "tsConfig": "frontend/tsconfig.app.json", "styles": ["frontend/src/styles.css", "frontend/src/containers.css", "frontend/src/loading/loading.css"],
         "assets": [{"glob":"**/*","input":"frontend/src/assets","output":"assets"}]
       },
       "configurations": {

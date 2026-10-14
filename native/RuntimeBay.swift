@@ -33,15 +33,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let logoURL = webRoot.map { URL(fileURLWithPath: $0).appendingPathComponent("assets/runtime-bay.png") }
             ?? resources.appendingPathComponent("runtime-bay.png")
         let logo = (try? Data(contentsOf: logoURL))?.base64EncodedString() ?? ""
+        let visualResources = FileManager.default.fileExists(atPath: resources.appendingPathComponent("loading-startup.js").path) ? resources : executableDirectory
+        let loadingCSS = (try? String(contentsOf: visualResources.appendingPathComponent("loading.css"), encoding: .utf8)) ?? ""
+        let loadingScript = (try? String(contentsOf: visualResources.appendingPathComponent("loading-startup.js"), encoding: .utf8)) ?? ""
         webView.loadHTMLString("""
             <!doctype html><html lang="en"><head><meta name="color-scheme" content="light dark"><style>
-            body{margin:0;min-height:100vh;display:grid;place-content:center;text-align:center;background:#f6f6f0;color:#203238;font:14px -apple-system}
-            .logo{display:block;width:96px;height:96px;margin:0 auto 22px;background:currentColor;-webkit-mask:url('data:image/png;base64,\(logo)') center/contain no-repeat;mask:url('data:image/png;base64,\(logo)') center/contain no-repeat;animation:spin 1.8s ease-in-out infinite}
-            h1{font-size:27px;font-weight:550;letter-spacing:-.6px;margin:0 0 10px}p{margin:0;opacity:.75}
-            @keyframes spin{to{transform:rotate(360deg)}}
-            @media(prefers-color-scheme:dark){body{background:#101615;color:#eaf1ef}}
-            @media(prefers-reduced-motion:reduce){.logo{animation:none}}
-            </style></head><body><main role="status"><span class="logo" aria-hidden="true"></span><h1>Runtime Bay</h1><p>Preparing your workspace…</p></main></body></html>
+            :root{--paper:#f6f6f0;--ink:#203238;--accent:#167d70;--focus:#3d9e8b;--runtime-bay-logo:url('data:image/png;base64,\(logo)')}
+            body{margin:0;min-height:100vh;display:grid;place-content:center;background:var(--paper);color:var(--ink);font:14px -apple-system}
+            @media(prefers-color-scheme:dark){:root{--paper:#101615;--ink:#eaf1ef;--accent:#7bd2bc;--focus:#b2e7da}}
+            \(loadingCSS)
+            </style></head><body><main><h1>Runtime Bay</h1></main><script>\(loadingScript)</script></body></html>
             """, baseURL: nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -77,7 +78,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         main.addItem(view)
         NSApp.mainMenu = main
     }
-    @objc func reloadWorkspace() { webView?.reload() }
+    @objc func reloadWorkspace() {
+        webView?.evaluateJavaScript("Boolean(document.querySelector('.loading-overlay'))") { result, _ in
+            if result as? Bool != true { self.webView?.reload() }
+        }
+    }
     @objc func customizeAppearance() { webView?.evaluateJavaScript("window.dispatchEvent(new Event('runtimebay:customize'))") }
     func startBackend() {
         do {

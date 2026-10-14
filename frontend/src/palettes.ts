@@ -30,6 +30,7 @@ export function themeTokens(palette: Palette, dark: boolean): Record<string, str
     '--surface': color(tint, dark ? 13 : 99), '--surface-soft': color(tint, dark ? 17 : 93),
     '--input': color(tint, dark ? 11 : 100), '--teal': color(s, dark ? 70 : 29),
     '--accent': color(s, dark ? 70 : 29), '--accent-hover': color(s, dark ? 77 : 23),
+    '--loading-highlight': color(s, dark ? 84 : 44),
     '--on-accent': color(tint, dark ? 10 : 100), '--focus': color(s, dark ? 70 : 39),
     '--nav': color(Math.min(s, 30), dark ? 6 : 15), '--nav-text': color(tint, 94),
     '--nav-muted': color(tint, 73), '--nav-selected': color(Math.min(s, 30), 25), '--nav-line': color(tint, 33),

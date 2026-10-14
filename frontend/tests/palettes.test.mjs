@@ -17,6 +17,7 @@ test('all twelve palettes meet text contrast in both appearances', () => {
   assert.equal(PALETTES.length,12); assert.equal(new Set(PALETTES.map(p=>p.id)).size,12);
   for (const palette of PALETTES) for (const dark of [false,true]) {
     const t=themeTokens(palette,dark);
+    assert.notEqual(t['--accent'], t['--loading-highlight'], `${palette.id} loading colors must differ`);
     for (const [foreground,background] of [['--ink','--paper'],['--muted','--paper'],['--muted','--surface-soft'],['--on-accent','--accent'],['--nav-muted','--nav'],['--terminal-muted','--terminal-bar'],['--success-ink','--success-bg'],['--warning-ink','--warning-bg'],['--danger-ink','--danger-bg']]) {
       assert.ok(contrast(t[foreground],t[background]) >= 4.5, `${palette.id}/${dark?'dark':'light'} ${foreground} contrast ${contrast(t[foreground],t[background])}`);
     }

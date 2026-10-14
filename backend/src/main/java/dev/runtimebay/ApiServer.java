@@ -64,7 +64,7 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }
         }
         if (path.equals("/api/status") && method.equals("GET")) {
-            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.3.1", "platform", "macOS")); return;
+            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.3.2", "platform", "macOS")); return;
         }
         if (path.equals("/api/projects")) {
             if (method.equals("GET")) { json(e, 200, runtimes.projects()); return; }
