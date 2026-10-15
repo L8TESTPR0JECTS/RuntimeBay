@@ -32,9 +32,10 @@ The question it helps answer is simple: **What is running, where is it running, 
 
 Your project files stay in their existing folders. Runtime Bay saves the commands you choose and runs them when you press Start. Its Java engine supervises those processes; its Angular interface keeps their state, output, and ports in view.
 
-| Workspace | Available in v0.3 |
+| Workspace | Available in v0.4 |
 | --- | --- |
 | **Projects & services** | Import folders; define commands and working directories; start, stop, and restart individual services or a project's services. |
+| **Workspace terminals** | Open independent interactive zsh tabs below your projects with **＋ Terminal** or **⌘T**; resize, switch, and close shells without leaving the app. |
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
 | **Containers** | Create stopped containers; start, stop, restart, pause, resume, and remove stopped containers; inspect logs and resource usage. |
 | **Images & storage** | Pull Docker Hub or other registry images with progress/cancellation; inspect cached images, named volumes, and networks. |
@@ -53,17 +54,21 @@ Connect a host   → view its containers       → inspect, create, and control 
 
 **Containers and Hosts have separate navigation entries.** Containers keeps a host selector so each action has an explicit destination. Hosts handles discovery and remote connection setup. Selecting **View containers** carries that host into the container workspace.
 
-Shell services stop when Runtime Bay closes. Docker containers keep running on their engine.
+Shell services and workspace terminals stop when Runtime Bay closes. Docker containers keep running on their engine.
+
+Workspace terminals start in the selected project’s root, or your home folder when there is no project. They keep running as you switch pages and reconnect after **⌘R**. Each tab has a close button that stops its shell and its processes. There is no application-imposed tab count; macOS resources set the practical limit. See [terminal behavior and lifecycle](docs/terminals.md).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Mac["Native macOS host<br/>Swift · AppKit · WKWebView"] --> UI["Angular workspace<br/>Projects · Containers · Hosts · Appearance"]
+  Mac["Native macOS host<br/>Swift · AppKit · WKWebView"] --> UI["Angular workspace<br/>Projects · Terminals · Containers · Hosts · Appearance"]
   UI --> API["Authenticated loopback API<br/>Java 25"]
   API --> Store["Local project definitions<br/>and appearance preferences"]
   API --> Supervisor["Native process supervisor"]
   Supervisor --> Services["Project shell services"]
+  API --> PTY["Native PTY supervisor per terminal"]
+  PTY --> Shells["Independent interactive zsh shells"]
   API --> Docker["User-installed Docker CLI"]
   Docker --> Local["Local Unix-socket engine"]
   Docker --> Remote["Remote SSH / verified TLS engine"]
@@ -131,7 +136,7 @@ Private image pulls reuse Docker authentication. Sign in with `docker login <reg
 | [`frontend/src/`](frontend/src/) | Angular workspace, container/host pages, palette tokens, appearance picker. |
 | [`frontend/tests/`](frontend/tests/) | Palette contrast and preference validation checks. |
 | [`backend/`](backend/) | Java API, local persistence, process orchestration, Docker adapter, integration tests. |
-| [`native/`](native/) | Swift macOS host, C process supervisor, bundled license text. |
+| [`native/`](native/) | Swift macOS host, C service/PTY supervisors, bundled license text. |
 | [`scripts/`](scripts/) | Development, validation, native builds, and macOS packaging. |
 | [`examples/`](examples/) | Small API and worker for trying the runtime workflow. |
 | [`docs/`](docs/) | Architecture, current container behavior, appearance, and integration research. |
@@ -146,17 +151,17 @@ Commands execute through `/bin/zsh -lc` under your account, inside the selected 
 
 Output stays in memory, bounded to 1,000 entries and 524,288 message characters per service. It resets when the app closes. Port inspection observes listeners with macOS `lsof`; it never terminates an external process. A listener is an observation rather than an application readiness check.
 
-Validation covers real process ownership and shutdown, API authentication, persistence, Docker local/SSH/TLS discovery, endpoint changes, and container/image command construction. Remote tests use fixtures. Optional live-Docker tests use uniquely named disposable workloads; see the [test instructions](docs/containers.md#validation).
+Validation covers real process ownership and shutdown, independent PTY shells, interactive input and Ctrl+C, window resizing, background-job cleanup, API authentication, persistence, Docker local/SSH/TLS discovery, endpoint changes, and container/image command construction. Remote tests use fixtures. Optional live-Docker tests use uniquely named disposable workloads; see the [test instructions](docs/containers.md#validation).
 
 ## Project status
 
-**v0.3 is an early working foundation for macOS.** Runtime management, container management, separate host navigation, and customization are implemented.
+**v0.4 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, container management, separate host navigation, and customization are implemented.
 
 The broader direction is to connect Git, coding agents, API collections, debugger sessions, and deployments to the same projects and runs. Those integrations are planned and are not included in the current application. See [integration research](docs/integrations.md).
 
 Current boundaries include:
 
-- Noninteractive process output; no embedded terminal, stdin, or PTY sessions yet.
+- Project service output is captured for inspection; use the separate workspace terminals for interactive commands. Terminal sessions and scrollback live in memory and end when the app closes.
 - Independent services; dependency ordering, readiness checks, profiles, and run history are future work.
 - Process ownership covers descendants in the supervised session; intentionally daemonized processes can escape that session.
 - Docker standalone engines; Compose labels are displayed, but stack deployment, Kubernetes/Swarm, container exec, registry publishing, and volume/network deletion are future work.

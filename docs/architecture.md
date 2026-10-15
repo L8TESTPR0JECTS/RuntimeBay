@@ -1,6 +1,6 @@
 # Runtime Bay architecture
 
-Status: v0.3, 2026-10-14. Service start/stop/restart, logs, ports, and container environments are implemented. Required stack: Java backend, Angular frontend, macOS first.
+Status: v0.4, 2026-10-14. Service start/stop/restart, logs, ports, and container environments are implemented. Required stack: Java backend, Angular frontend, macOS first.
 
 ## Product purpose
 
@@ -51,6 +51,10 @@ Java serializes changes to each service's runtime. Stop sends TERM through the s
 
 The supervisor also watches its stdin pipe. If Java closes or crashes, pipe EOF triggers cleanup. If the shell exits while grandchildren remain, the supervisor cleans up that session before exiting. Commands that create another session to daemonize are outside this model; long-lived development commands should remain in the foreground.
 
+## Workspace terminals
+
+A separate [terminal subsystem](terminals.md) owns interactive shells independently of configured services. A native `forkpty` supervisor starts each login zsh in its own session. xterm.js renders UTF-8/ANSI output inside the Angular workspace. Input and resize requests, output cursor polling, and tab lifecycle use the same authenticated local API. Closing a tab or the engine cleans up all process groups in the captured shell session, including interactive foreground and background jobs.
+
 ## Local API boundary
 
 The Java engine binds only to `127.0.0.1` on an OS-selected port. Swift generates a random token for each launch and injects it only into the trusted top-level application document. Every API operation requires the token. Host and Origin checks prevent ordinary browser pages from driving the engine; requests do not use cookie authentication.
@@ -62,7 +66,7 @@ These are local application boundaries, not isolation from other software runnin
 ## Delivery sequence
 
 1. **Runtime foundation (implemented):** project folders, service commands, start/stop/restart, child cleanup, bounded logs, listener inspection, native packaging.
-2. **Runtime reliability:** declarative project manifest, dependency graph, readiness probes, environment profiles with Keychain secret references, persistent run history, and a real PTY terminal. Standalone Docker management is implemented; add Compose deployment and shared readiness/health behavior next.
+2. **Runtime reliability:** declarative project manifest, dependency graph, readiness probes, environment profiles with Keychain secret references, persistent run history. Workspace PTY terminals and standalone Docker management are implemented; add Compose deployment and shared readiness/health behavior next.
 3. **Git and agents:** Git status/diffs, worktrees, one Codex adapter, streaming agent events and approvals, and association of agent sessions with their worktree and runtime. Evaluate T3 reuse at a pinned upstream revision.
 4. **API workflows:** Bruno collection execution, Postman-compatible imports subject to format support, shared environment values, request history, and results associated with the selected run.
 5. **Debugging and deployment:** editor debugger launch/attach first, then protocol-based integrations and explicit deployment targets. Deployment history records the revision, configuration, and result.

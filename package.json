@@ -1,6 +1,6 @@
 {
   "name": "runtime-bay",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
   "description": "A macOS workspace for local development runtimes",
   "scripts": {
@@ -19,6 +19,8 @@
     "@angular/core": "21.2.25",
     "@angular/forms": "21.2.25",
     "@angular/platform-browser": "21.2.25",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
     "gsap": "3.15.0",
     "rxjs": "7.8.2",
     "tslib": "2.8.1"

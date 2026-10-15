@@ -5,6 +5,7 @@ Runtime Bay's own source is MIT licensed. The Java backend and Angular interface
 | Component | License | Upstream |
 | --- | --- | --- |
 | Angular | MIT | https://github.com/angular/angular |
+| xterm.js 6.0.0 and Fit addon 0.11.0 | MIT | https://github.com/xtermjs/xterm.js |
 | RxJS | Apache-2.0 | https://github.com/ReactiveX/rxjs |
 | GSAP 3.15.0 | [Standard “No Charge” GSAP License](https://gsap.com/standard-license/) | https://github.com/greensock/GSAP |
 | tslib | 0BSD | https://github.com/microsoft/tslib |

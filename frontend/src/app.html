@@ -5,6 +5,7 @@
     <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
     <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
     <div class="sidebar-label">WORKSPACE <span>{{ projects().length }}</span></div>
+    <div class="workspace-items">
     <nav aria-label="Projects">
       @for (p of projects(); track p.id) {
         <button class="project-link" [class.selected]="p.id === projectId() && view() === 'runtime'" (click)="selectProject(p.id)">
@@ -15,13 +16,23 @@
       }
       @if (!projects().length) { <p class="sidebar-empty">Your projects will appear here.</p> }
     </nav>
-    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.3.2</small></div>
+    <div class="terminal-section-heading"><span>TERMINALS</span><button class="new-terminal" (click)="newTerminal()" [disabled]="terminals.creating()" aria-label="New terminal">＋ Terminal</button></div>
+    <nav class="shell-tabs" aria-label="Terminal tabs">
+      @for (tab of terminals.tabs(); track tab.id) {
+        <div class="shell-tab" [class.selected]="view() === 'terminal' && terminals.selected() === tab.id">
+          <button class="shell-tab-select" (click)="selectTerminal(tab.id)" [attr.aria-current]="view() === 'terminal' && terminals.selected() === tab.id ? 'page' : null"><span aria-hidden="true">›_</span><span>{{ tab.name }}<small>{{ tab.exitCode !== null ? 'Exited · ' + tab.exitCode : 'zsh' }}</small></span></button>
+          <button class="shell-tab-close" [attr.aria-label]="'Close ' + tab.name" title="Close terminal and stop its processes" [disabled]="terminals.closing().includes(tab.id)" (click)="terminals.close(tab.id)">×</button>
+        </div>
+      }
+    </nav>
+    </div>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.4.0</small></div>
   </aside>
   <main>
-    <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
+    <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
     @if (view() === 'containers' || view() === 'hosts') {
       <app-containers [session]="sessionToken" [projects]="projects()" [page]="view() === 'hosts' ? 'hosts' : 'containers'" (navigate)="view.set($event)"></app-containers>
-    } @else {
+    } @else if (view() === 'runtime') {
     <div class="content">
       @if (!connected() && !loading()) {
         <div class="notice" role="alert">The local engine is disconnected. Reopen Runtime Bay to reconnect. <button (click)="refreshForeground()">Retry</button></div>
@@ -88,6 +99,7 @@
       <footer>Less juggling. More building.<span>RUNTIME BAY</span></footer>
     </div>
     }
+    <app-terminals [workspace]="terminals" [visible]="view() === 'terminal'"></app-terminals>
   </main>
 </div>
 @if (sheet()) {

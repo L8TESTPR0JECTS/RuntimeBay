@@ -3,6 +3,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, LogEntry, LogResponse } from './types';
+import { Terminals, TerminalWorkspace } from './terminals';
 import { Containers } from './containers';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
@@ -11,15 +12,16 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
-  view = signal<'runtime' | 'containers' | 'hosts'>('runtime');
+  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal'>('runtime');
   readonly loader = inject(LoadingService);
   private loadingTasks = this.loader.scope();
   readonly appearance = new Appearance(session, this.loader);
   readonly sessionToken = session;
+  readonly terminals = new TerminalWorkspace(session);
   projects = signal<Project[]>([]);
   projectId = signal<string | null>(null);
   serviceId = signal<string | null>(null);
@@ -67,9 +69,10 @@ class App implements OnDestroy {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     if (event.key === 'Escape' && !this.saving()) this.sheet.set(null);
-    if (this.appearance.open()) return;
+    if (this.appearance.open() || this.sheet()) return;
+    if (event.metaKey && event.key.toLowerCase() === 't') { event.preventDefault(); void this.newTerminal(); }
     if ((event.metaKey || event.ctrlKey) && event.key === ',') { event.preventDefault(); this.appearance.show(); }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    if ((event.metaKey || (event.ctrlKey && this.view() !== 'terminal')) && event.key.toLowerCase() === 'k') {
       event.preventDefault(); this.openProject();
     }
   };
@@ -86,7 +89,7 @@ class App implements OnDestroy {
     this.timer = setInterval(() => void this.refresh(), 1500);
   }
   ngOnDestroy() {
-    this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
+    this.terminals.destroy(); this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
     window.removeEventListener('runtimebay:folder', this.folderListener);
     window.removeEventListener('keydown', this.keyListener);
   }
@@ -127,6 +130,11 @@ class App implements OnDestroy {
       this.scrollLogs();
     }
   }
+  async newTerminal() {
+    this.view.set('terminal');
+    await this.terminals.create(this.projectId());
+  }
+  selectTerminal(id: string) { this.terminals.selected.set(id); this.view.set('terminal'); }
   selectProject(id: string | null, switchView = true) {
     if (switchView) this.view.set('runtime');
     this.projectId.set(id); this.selectService(this.project()?.services[0]?.id || null);

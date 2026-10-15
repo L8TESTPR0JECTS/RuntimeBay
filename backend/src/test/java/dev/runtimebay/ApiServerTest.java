@@ -36,6 +36,22 @@ class ApiServerTest {
         assertEquals(200, status(request("/api/projects").header("Authorization", "Bearer " + token)));
         assertEquals(415, status(request("/api/projects").header("Authorization", "Bearer " + token).POST(HttpRequest.BodyPublishers.ofString("{}"))));
     }
+    @Test void terminalApiRequiresTokenAndSupportsCreationInputResizeAndClose() throws Exception {
+        assertEquals(401, status(request("/api/terminals").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}"))));
+        assertEquals(403, status(request("/api/terminals").header("Authorization", "Bearer " + token).header("Origin", "https://example.com").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}"))));
+        var response = client.send(request("/api/terminals").header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}" )).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, response.statusCode());
+        String id = JsonParser.parseString(response.body()).getAsJsonObject().get("id").getAsString();
+        for (String action : java.util.List.of("input", "resize")) {
+            String body = action.equals("input") ? "{\"data\":\"printf hello\\n\"}" : "{\"columns\":100,\"rows\":30}";
+            assertEquals(401, status(request("/api/terminals/" + id + "/" + action).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body))));
+            assertEquals(200, status(request("/api/terminals/" + id + "/" + action).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body))));
+        }
+        assertEquals(400, status(request("/api/terminals/" + id + "/output?after=-1").header("Authorization", "Bearer " + token)));
+        assertEquals(400, status(request("/api/terminals/" + id + "/resize").header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"columns\":12.5,\"rows\":30}"))));
+        assertEquals(200, status(request("/api/terminals/" + id).header("Authorization", "Bearer " + token).DELETE()));
+        assertEquals(404, status(request("/api/terminals/" + id + "/output?after=0").header("Authorization", "Bearer " + token)));
+    }
     @Test void servesAssetsWithSecurityHeadersAndBlocksTraversal() throws Exception {
         var response = client.send(request("/").build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());

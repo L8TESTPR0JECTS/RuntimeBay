@@ -17,6 +17,7 @@ final class ApiServer implements AutoCloseable {
     private final RuntimeManager runtimes;
     private final DockerService docker;
     private final AppearanceStore appearance;
+    private final TerminalManager terminals;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -28,6 +29,8 @@ final class ApiServer implements AutoCloseable {
         if (token == null || token.length() < 32) throw new IllegalArgumentException("A strong session token is required");
         this.store = store; this.runtimes = runtimes; this.webRoot = webRoot.toRealPath(); this.token = token; this.docker = docker;
         appearance = new AppearanceStore(store.directory());
+        Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
+        terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"));
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
         server.setExecutor(requests);
         server.createContext("/", this::handle);
@@ -58,13 +61,14 @@ final class ApiServer implements AutoCloseable {
     private void route(HttpExchange e, String path) throws IOException {
         String method = e.getRequestMethod();
         String[] parts = path.substring(1).split("/");
+        if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
         if (path.equals("/api/preferences")) {
             if (method.equals("GET")) { json(e, 200, appearance.get()); return; }
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }
         }
         if (path.equals("/api/status") && method.equals("GET")) {
-            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.3.2", "platform", "macOS")); return;
+            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.4.0", "platform", "macOS")); return;
         }
         if (path.equals("/api/projects")) {
             if (method.equals("GET")) { json(e, 200, runtimes.projects()); return; }
@@ -111,6 +115,33 @@ final class ApiServer implements AutoCloseable {
             }
         }
         throw new ApiException(404, "Endpoint not found");
+    }
+    private void routeTerminals(HttpExchange e, String[] parts) throws IOException {
+        String method = e.getRequestMethod();
+        if (parts.length == 2) {
+            if (method.equals("GET")) { json(e, 200, terminals.list()); return; }
+            if (method.equals("POST")) { json(e, 201, terminals.create(string(body(e), "projectId"))); return; }
+        }
+        if (parts.length == 3 && method.equals("DELETE")) { terminals.remove(parts[2]); json(e, 200, Map.of("ok", true)); return; }
+        if (parts.length == 4) {
+            String id = parts[2];
+            if (parts[3].equals("output") && method.equals("GET")) {
+                String cursor = query(e, "after");
+                if (cursor == null || !cursor.matches("[0-9]{1,18}")) throw new ApiException(400, "An output cursor is required");
+                try { json(e, 200, terminals.output(id, Long.parseLong(cursor))); }
+                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new ApiException(503, "Terminal connection closed"); }
+                return;
+            }
+            if (parts[3].equals("input") && method.equals("POST")) { terminals.input(id, string(body(e), "data")); json(e, 200, Map.of("ok", true)); return; }
+            if (parts[3].equals("resize") && method.equals("POST")) {
+                JsonObject value = body(e);
+                for (String key : List.of("columns", "rows")) {
+                    if (!value.has(key) || !value.get(key).isJsonPrimitive() || !value.getAsJsonPrimitive(key).isNumber() || !value.get(key).getAsString().matches("[0-9]{1,4}")) throw new ApiException(400, "Invalid terminal dimensions");
+                }
+                terminals.resize(id, value.get("columns").getAsInt(), value.get("rows").getAsInt()); json(e, 200, Map.of("ok", true)); return;
+            }
+        }
+        throw new ApiException(404, "Terminal endpoint not found");
     }
     private void routeDocker(HttpExchange e, String[] parts) throws IOException {
         String method = e.getRequestMethod();
@@ -210,5 +241,5 @@ final class ApiServer implements AutoCloseable {
         e.sendResponseHeaders(status, bytes.length);
         e.getResponseBody().write(bytes);
     }
-    @Override public void close() { server.stop(0); requests.shutdownNow(); }
+    @Override public void close() { server.stop(0); terminals.close(); requests.shutdownNow(); }
 }
