@@ -35,6 +35,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | Workspace | Available in v0.4 |
 | --- | --- |
 | **Projects & services** | Import folders; define commands and working directories; start, stop, and restart individual services or a project's services. |
+| **Workflow containers** | Link existing local or remote containers to a project workflow; inspect live status/ports and start, stop, restart, or unlink dependencies. |
 | **Workspace terminals** | Open independent interactive zsh tabs below your projects with **＋ Terminal** or **⌘T**; resize, switch, and close shells without leaving the app. |
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
 | **Containers** | Create stopped containers; start, stop, restart, pause, resume, and remove stopped containers; inspect logs and resource usage. |
@@ -51,6 +52,8 @@ The first-use appearance picker offers Harbor, Ocean, Glacier, Forest, Sage, Amb
 Import a project → add its service commands → start → inspect output and ports → stop or restart
 Connect a host   → view its containers       → inspect, create, and control workloads
 ```
+
+**A workflow combines a project’s services and linked container dependencies.** Use **Link container** in the project view to select Kafka, a database, or another existing container from a Docker host. Links persist across launches; unlinking keeps the container intact. Containers created with a workflow project selected are linked automatically. Service controls and container controls remain explicit.
 
 **Containers and Hosts have separate navigation entries.** Containers keeps a host selector so each action has an explicit destination. Hosts handles discovery and remote connection setup. Selecting **View containers** carries that host into the container workspace.
 
@@ -155,7 +158,7 @@ Validation covers real process ownership and shutdown, independent PTY shells, i
 
 ## Project status
 
-**v0.4 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, container management, separate host navigation, and customization are implemented.
+**v0.4 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, container management, separate host navigation, and customization are implemented.
 
 The broader direction is to connect Git, coding agents, API collections, debugger sessions, and deployments to the same projects and runs. Those integrations are planned and are not included in the current application. See [integration research](docs/integrations.md).
 

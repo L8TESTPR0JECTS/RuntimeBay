@@ -51,6 +51,14 @@ Java serializes changes to each service's runtime. Stop sends TERM through the s
 
 The supervisor also watches its stdin pipe. If Java closes or crashes, pipe EOF triggers cleanup. If the shell exits while grandchildren remain, the supervisor cleans up that session before exiting. Commands that create another session to daemonize are outside this model; long-lived development commands should remain in the foreground.
 
+## Workflow containers
+
+The app workspace contains project workflows. A workflow combines saved service commands with references to existing Docker containers. `WorkflowContainers` atomically stores these references in `workflow-containers.json`, independently of the existing project registry, so no migration of service definitions is needed.
+
+Each reference pins project ID, Docker context, selected endpoint, and the complete container ID. Linking verifies current host identity and container existence, without modifying Docker labels or configuration. Newly created containers can also be associated with their selected workflow. Live status is grouped by host to avoid querying the same engine once per container. Missing containers and unavailable or changed hosts remain visible as references that can be unlinked offline. A recreated container must be explicitly linked again.
+
+Workflow container actions require both project membership and the saved host/identity checks. Unlinking only removes metadata. Containers can be shared across workflows, and Docker workloads continue running after the app closes. The workflow's **Start services** and **Stop services** buttons control configured services; container operations use their own buttons. Linking does not imply startup ordering or readiness checks.
+
 ## Workspace terminals
 
 A separate [terminal subsystem](terminals.md) owns interactive shells independently of configured services. A native `forkpty` supervisor starts each login zsh in its own session. xterm.js renders UTF-8/ANSI output inside the Angular workspace. Input and resize requests, output cursor polling, and tab lifecycle use the same authenticated local API. Closing a tab or the engine cleans up all process groups in the captured shell session, including interactive foreground and background jobs.

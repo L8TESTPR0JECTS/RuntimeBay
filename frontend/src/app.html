@@ -4,7 +4,7 @@
     <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
     <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
     <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
-    <div class="sidebar-label">WORKSPACE <span>{{ projects().length }}</span></div>
+    <div class="sidebar-label">WORKFLOWS <span>{{ projects().length }}</span></div>
     <div class="workspace-items">
     <nav aria-label="Projects">
       @for (p of projects(); track p.id) {
@@ -26,10 +26,10 @@
       }
     </nav>
     </div>
-    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.4.0</small></div>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.4.1</small></div>
   </aside>
   <main>
-    <header class="topbar"><div><span class="crumb">Workspace</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
+    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
     @if (view() === 'containers' || view() === 'hosts') {
       <app-containers [session]="sessionToken" [projects]="projects()" [page]="view() === 'hosts' ? 'hosts' : 'containers'" (navigate)="view.set($event)"></app-containers>
     } @else if (view() === 'runtime') {
@@ -52,8 +52,8 @@
         <section class="services-section">
           <div class="section-heading"><div><h2>Services <span class="count">{{ project()!.services.length }}</span></h2><p>The moving parts of your project.</p></div><div class="section-actions">
             @if (project()!.services.length) {
-              <button class="text-button" (click)="all('stop')" [disabled]="!connected() || pending().length > 0">Stop all</button>
-              <button class="secondary" (click)="all('start')" [disabled]="!connected() || pending().length > 0">▷ Start all</button>
+              <button class="text-button" (click)="all('stop')" [disabled]="!connected() || pending().length > 0">Stop services</button>
+              <button class="secondary" (click)="all('start')" [disabled]="!connected() || pending().length > 0">▷ Start services</button>
             }
             <button class="primary" (click)="openService()" [disabled]="!connected()">＋ Add service</button>
           </div></div>
@@ -79,6 +79,7 @@
             </div>
           }
         </section>
+        <app-workflow-containers [projectId]="project()!.id" [session]="sessionToken"></app-workflow-containers>
         @if (service(); as s) {
           <section class="inspector"><div class="inspector-heading"><div><span class="eyebrow">RUNTIME INSPECTOR</span><h2>{{ s.name }} <span class="inspector-state">{{ s.pid ? 'PID ' + s.pid : s.state }}</span></h2></div><div class="section-actions"><button class="text-button" (click)="openService(s)" [disabled]="active(s) || busy(s)">Edit service</button><button class="text-button" (click)="askDelete()" [disabled]="active(s) || busy(s)" aria-label="Remove service">Remove</button></div></div>
             @if (s.portInfo; as info) {

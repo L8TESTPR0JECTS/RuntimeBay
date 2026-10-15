@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash scripts/build.sh
-runtimebay_app="$PWD/dist/Runtime Bay.app"
+runtimebay_app="${RUNTIMEBAY_PACKAGE_PATH:-$PWD/dist/Runtime Bay.app}"
 mkdir -p "$runtimebay_app/Contents/MacOS" "$runtimebay_app/Contents/Resources"
 cp .build/RuntimeBay "$runtimebay_app/Contents/MacOS/RuntimeBay"
 cp .build/runtimebay-launcher .build/runtimebay-terminal backend/target/runtimebay-backend.jar "$runtimebay_app/Contents/Resources/"
@@ -30,8 +30,8 @@ cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>RuntimeBay</string>
 <key>CFBundleIconFile</key><string>RuntimeBay.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.0</string>
-<key>CFBundleVersion</key><string>6</string>
+<key>CFBundleShortVersionString</key><string>0.4.1</string>
+<key>CFBundleVersion</key><string>7</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSHumanReadableCopyright</key><string>Runtime Bay contributors</string>

@@ -1,0 +1,35 @@
+<section class="workflow-containers" [attr.inert]="open() ? '' : null">
+  <div class="section-heading"><div><h2>Containers <span class="count">{{ links().length }}</span></h2><p>The Docker dependencies in this workflow.</p></div><button class="primary" (click)="show()">＋ Link container</button></div>
+  @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="load()">Retry</button></div> }
+  @if (!links().length) { <div class="workflow-container-empty"><span aria-hidden="true">▤</span><div><strong>{{ loading() ? 'Loading linked containers…' : 'Bring your dependencies into the workflow.' }}</strong><p>Link Kafka, databases, caches, or any existing container on your Docker hosts.</p></div></div> }
+  <div class="workflow-container-list">
+    @for (link of links(); track link.id) {
+      @let current = state(link);
+      <article class="workflow-container-card"><div class="workflow-container-info"><span class="eyebrow">{{ link.context }}</span><h3>{{ link.name }}</h3><code>{{ link.image }}</code><small [title]="link.endpoint">{{ link.endpoint }}</small><code class="container-identity" [title]="link.containerId">{{ link.containerId.slice(0, 12) }}</code></div>
+        <div class="workflow-container-state"><span class="status" [class.running]="current?.state === 'running'"><i></i>{{ current?.state || 'Checking…' }}</span><small>{{ current?.status }}</small>@if (current?.ports) { <code>{{ current!.ports }}</code> }@if (current?.error) { <p class="form-error">{{ current!.error }}</p> }</div>
+        <div class="workflow-container-actions"><button class="text-button" (click)="action(link, 'unlink')" [disabled]="pending().includes(link.id)" title="Remove this link; keep the Docker container">Unlink</button>
+          @if (current?.state === 'running') { <button class="secondary" (click)="action(link, 'restart')" [disabled]="pending().includes(link.id)">Restart</button><button class="stop-button" (click)="action(link, 'stop')" [disabled]="pending().includes(link.id)">■ Stop</button> }
+          @else if (current?.state === 'paused') { <button class="primary" (click)="action(link, 'resume')" [disabled]="pending().includes(link.id)">Resume</button> }
+          @else { <button class="start-button" (click)="action(link, 'start')" [disabled]="pending().includes(link.id) || !current || current.state === 'missing' || current.state === 'unavailable'">▷ Start</button> }
+        </div>
+      </article>
+    }
+  </div>
+  @if (links().length) { <p class="resource-note">Containers keep running when Runtime Bay closes. Service controls above apply to services; each container has its own controls.</p> }
+</section>
+@if (open()) {
+  <div class="modal-backdrop" (click)="dismiss()"><section class="modal workflow-container-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-container-title" (click)="$event.stopPropagation()">
+    <div class="modal-top"><span class="eyebrow">CONNECT THE MOVING PARTS</span><button class="icon-button" aria-label="Close container picker" (click)="dismiss()" [disabled]="saving()">×</button></div>
+    <h2 id="workflow-container-title">Link a container.</h2><p>Choose an existing container to include in this workflow.</p>
+    <label>DOCKER HOST<select [ngModel]="hostName()" (ngModelChange)="selectHost($event)" [disabled]="saving()"><option value="">Choose a host…</option>@for (host of discovery()?.environments || []; track host.name) { <option [value]="host.name" [disabled]="!host.supported">{{ host.name }} · {{ host.transport }}</option> }</select></label>
+    @if (host(); as selected) { <p class="target-address">{{ selected.endpoint }}</p> }
+    <input class="workflow-container-filter" aria-label="Filter available containers" placeholder="Find Kafka, a database, a container…" [ngModel]="filter()" (ngModelChange)="filter.set($event)">
+    <div class="container-picker-list" role="radiogroup" aria-label="Available containers">
+      @for (container of visible(); track container.id) { <label class="container-picker-row" [class.selected]="selectedId() === container.id"><input type="radio" name="container" [value]="container.id" [ngModel]="selectedId()" (ngModelChange)="selectedId.set($event)" [disabled]="saving() || linked(container)"><span><strong>{{ container.name }}</strong><code>{{ container.image }}</code><small>{{ container.state }}{{ container.composeProject ? ' · Compose: ' + container.composeProject : '' }}{{ linked(container) ? ' · Already linked' : '' }}</small></span></label> }
+      @if (connecting()) { <p role="status">Loading containers from {{ hostName() }}…</p> }
+      @else if (!visible().length) { <p>{{ discovery()?.available === false ? discovery()?.error || 'Install Docker to link containers.' : 'No matching containers on this host.' }}</p> }
+    </div>
+    @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+    <div class="modal-footer"><small>Linking preserves the container and its configuration.</small><button class="primary" (click)="attach()" [disabled]="saving() || !selectedId() || connecting()">{{ saving() ? 'Linking…' : 'Link container' }}</button></div>
+  </section></div>
+}

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
+import { WorkflowContainers } from './workflow-containers';
 import { Containers } from './containers';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
@@ -12,7 +13,7 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals, WorkflowContainers],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
@@ -69,7 +70,7 @@ class App implements OnDestroy {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     if (event.key === 'Escape' && !this.saving()) this.sheet.set(null);
-    if (this.appearance.open() || this.sheet()) return;
+    if (this.appearance.open() || this.sheet() || document.querySelector('.workflow-container-modal')) return;
     if (event.metaKey && event.key.toLowerCase() === 't') { event.preventDefault(); void this.newTerminal(); }
     if ((event.metaKey || event.ctrlKey) && event.key === ',') { event.preventDefault(); this.appearance.show(); }
     if ((event.metaKey || (event.ctrlKey && this.view() !== 'terminal')) && event.key.toLowerCase() === 'k') {

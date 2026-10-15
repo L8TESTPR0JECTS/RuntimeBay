@@ -15,12 +15,13 @@ class DockerApiTest {
     ApiServer server;
     RuntimeManager runtime;
     DockerService docker;
+    ProjectStore store;
     DockerServiceTest.FakeDocker fixture;
     String token = "t".repeat(64);
     HttpClient client = HttpClient.newHttpClient();
     @BeforeEach void setup() throws Exception {
         Path web = Files.createDirectory(temporary.resolve("web")); Files.writeString(web.resolve("index.html"), "Runtime Bay");
-        ProjectStore store = new ProjectStore(temporary.resolve("data"));
+        store = new ProjectStore(temporary.resolve("data"));
         runtime = new RuntimeManager(store, Path.of("../.build/runtimebay-launcher"));
         fixture = new DockerServiceTest.FakeDocker(); docker = new DockerService(fixture);
         server = new ApiServer(store, runtime, web, token, docker); server.start();
@@ -47,6 +48,31 @@ class DockerApiTest {
         assertEquals(409, post("/environments/remote/containers/" + DockerServiceTest.ID + "/stop", "{\"endpoint\":\"ssh://changed.example.com\"}").statusCode());
         assertEquals(400, post("/environments/remote/containers/--all/stop", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\"}").statusCode());
         assertEquals(400, post("/environments/remote/containers", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"definition\":{\"name\":\"fraction\",\"image\":\"nginx:alpine\",\"ports\":[{\"host\":8080.5,\"container\":80}]}}").statusCode());
+    }
+    @Test void workflowContainerEndpointsAuthenticatePersistAndUnlinkWithoutDockerMutation() throws Exception {
+        String project = store.addProject("Workflow fixture", temporary.toString()).id();
+        String path = "http://127.0.0.1:" + server.port() + "/api/projects/" + project + "/containers";
+        String body = "{\"context\":\"remote\",\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"containerId\":\"" + DockerServiceTest.ID + "\"}";
+        var builder = HttpRequest.newBuilder(URI.create(path)).header("Content-Type", "application/json");
+        assertEquals(401, client.send(builder.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertTrue(fixture.calls.isEmpty());
+        var response = client.send(HttpRequest.newBuilder(URI.create(path)).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, response.statusCode());
+        String id = JsonParser.parseString(response.body()).getAsJsonObject().get("id").getAsString();
+        assertEquals(403, client.send(HttpRequest.newBuilder(URI.create(path + "/" + id + "/stop")).header("Authorization", "Bearer " + token).header("Origin", "https://example.com").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertTrue(fixture.running); fixture.calls.clear();
+        var listed = client.send(HttpRequest.newBuilder(URI.create(path)).header("Authorization", "Bearer " + token).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, listed.statusCode()); assertTrue(listed.body().contains(id));
+        assertEquals(200, client.send(HttpRequest.newBuilder(URI.create(path + "/" + id)).header("Authorization", "Bearer " + token).DELETE().build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertTrue(fixture.calls.isEmpty()); assertTrue(fixture.running);
+    }
+    @Test void creatingAContainerWithAWorkflowAlsoSavesTheLink() throws Exception {
+        String project = store.addProject("Workflow fixture", temporary.toString()).id();
+        var created = post("/environments/remote/containers", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"definition\":{\"name\":\"workflow-api\",\"image\":\"nginx:alpine\",\"projectId\":\"" + project + "\",\"ports\":[],\"mounts\":[],\"arguments\":[]}}");
+        assertEquals(201, created.statusCode());
+        var links = new WorkflowContainers(store, docker).list(project);
+        assertEquals(1, links.size()); assertEquals("workflow-api", links.getFirst().name());
+        assertEquals(DockerServiceTest.ID, links.getFirst().containerId()); assertEquals(DockerServiceTest.REMOTE, links.getFirst().endpoint());
     }
     @Test void createsContainerAndStartsAnAsynchronousPull() throws Exception {
         var result = post("/environments/remote/containers", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"definition\":{\"name\":\"api\",\"image\":\"nginx:alpine\",\"ports\":[],\"mounts\":[],\"arguments\":[]}}");

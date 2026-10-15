@@ -22,7 +22,7 @@ class DockerServiceTest {
     static class FakeDocker implements DockerService.Commands {
         final Map<String, JsonObject> contexts = new ConcurrentHashMap<>();
         final List<List<String>> calls = Collections.synchronizedList(new ArrayList<>());
-        boolean running = true, paused;
+        boolean running = true, paused, containerMissing;
         volatile CountDownLatch pulling, release;
         volatile Path envFile;
         volatile String envContents;
@@ -63,7 +63,7 @@ class DockerServiceTest {
                 case "info": return ok("{\"Name\":\"fixture-engine\",\"ServerVersion\":\"29.0\",\"NCPU\":4,\"MemTotal\":1073741824,\"Containers\":1,\"ContainersRunning\":1,\"Images\":2,\"OperatingSystem\":\"Linux\",\"Architecture\":\"aarch64\"}");
                 case "container":
                     switch (command.get(1)) {
-                        case "ls": return ok("{\"ID\":\"" + ID + "\",\"Names\":\"api\",\"Image\":\"nginx:alpine\",\"State\":\"running\",\"Status\":\"Up 1 minute\",\"Ports\":\"127.0.0.1:8080->80/tcp\",\"Labels\":\"com.docker.compose.project=demo,dev.runtimebay.project=workspace-id\"}\n");
+                        case "ls": if (containerMissing) return ok(""); return ok("{\"ID\":\"" + ID + "\",\"Names\":\"api\",\"Image\":\"nginx:alpine\",\"State\":\"running\",\"Status\":\"Up 1 minute\",\"Ports\":\"127.0.0.1:8080->80/tcp\",\"Labels\":\"com.docker.compose.project=demo,dev.runtimebay.project=workspace-id\"}\n");
                         case "inspect": return ok("{\"Name\":\"/api\",\"State\":{\"Running\":" + running + ",\"Paused\":" + paused + ",\"Status\":\"running\",\"ExitCode\":0},\"Config\":{\"Image\":\"nginx:alpine\",\"Env\":[\"PASSWORD=private-value\"]},\"HostConfig\":{\"RestartPolicy\":{\"Name\":\"unless-stopped\"}},\"Mounts\":[{\"Type\":\"volume\",\"Name\":\"data\",\"Destination\":\"/data\",\"RW\":true}],\"NetworkSettings\":{\"Networks\":{\"bridge\":{}}}}");
                         case "logs": return new DockerService.Result(0, "fixture stdout\n", "fixture stderr\n");
                         case "stats": return ok("{\"CPUPerc\":\"1.25%\",\"MemUsage\":\"8MiB / 1GiB\",\"MemPerc\":\"0.78%\",\"NetIO\":\"1kB / 2kB\",\"BlockIO\":\"0B / 0B\",\"PIDs\":\"2\"}\n");

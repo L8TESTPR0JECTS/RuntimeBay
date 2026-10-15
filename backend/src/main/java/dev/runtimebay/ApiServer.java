@@ -18,6 +18,7 @@ final class ApiServer implements AutoCloseable {
     private final DockerService docker;
     private final AppearanceStore appearance;
     private final TerminalManager terminals;
+    private final WorkflowContainers workflowContainers;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -29,6 +30,7 @@ final class ApiServer implements AutoCloseable {
         if (token == null || token.length() < 32) throw new IllegalArgumentException("A strong session token is required");
         this.store = store; this.runtimes = runtimes; this.webRoot = webRoot.toRealPath(); this.token = token; this.docker = docker;
         appearance = new AppearanceStore(store.directory());
+        workflowContainers = new WorkflowContainers(store, docker);
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"));
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
@@ -68,7 +70,7 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }
         }
         if (path.equals("/api/status") && method.equals("GET")) {
-            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.4.0", "platform", "macOS")); return;
+            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.4.1", "platform", "macOS")); return;
         }
         if (path.equals("/api/projects")) {
             if (method.equals("GET")) { json(e, 200, runtimes.projects()); return; }
@@ -76,6 +78,19 @@ final class ApiServer implements AutoCloseable {
                 JsonObject body = body(e);
                 json(e, 201, store.addProject(string(body, "name"), string(body, "path"))); return;
             }
+        }
+        if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("containers")) {
+            String project = parts[2];
+            if (parts.length == 4) {
+                if (method.equals("GET")) { json(e, 200, workflowContainers.list(project)); return; }
+                if (method.equals("POST")) {
+                    JsonObject value = body(e);
+                    json(e, 201, workflowContainers.add(project, string(value, "context"), string(value, "endpoint"), string(value, "containerId"))); return;
+                }
+            }
+            if (parts.length == 5 && parts[4].equals("status") && method.equals("GET")) { json(e, 200, workflowContainers.status(project)); return; }
+            if (parts.length == 5 && method.equals("DELETE")) { workflowContainers.remove(project, parts[4]); json(e, 200, Map.of("ok", true)); return; }
+            if (parts.length == 6 && method.equals("POST")) { body(e); workflowContainers.action(project, parts[4], parts[5]); json(e, 200, Map.of("ok", true)); return; }
         }
         if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("services")) {
             String project = parts[2];
@@ -179,7 +194,13 @@ final class ApiServer implements AutoCloseable {
                 }
                 DockerModels.Create create = gson.fromJson(definition, DockerModels.Create.class);
                 if (create.projectId() != null && !create.projectId().isBlank()) store.project(create.projectId());
-                json(e, 201, Map.of("id", docker.create(context, string(value, "endpoint"), create))); return;
+                String endpoint = string(value, "endpoint");
+                String id = docker.create(context, endpoint, create);
+                String warning = null;
+                if (create.projectId() != null && !create.projectId().isBlank()) try {
+                    workflowContainers.record(create.projectId(), context, endpoint, id, create.name(), create.image());
+                } catch (IOException error) { warning = "Container created, but its workflow link could not be saved. Link it from the workflow's Containers section."; }
+                json(e, 201, warning == null ? Map.of("id", id) : Map.of("id", id, "warning", warning)); return;
             }
             if (parts.length == 6 && parts[4].equals("images") && parts[5].equals("pull") && method.equals("POST")) {
                 JsonObject value = body(e); json(e, 202, docker.pull(context, string(value, "endpoint"), string(value, "image"))); return;

@@ -188,12 +188,13 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
         if (Object.prototype.hasOwnProperty.call(environment, key)) throw new Error('Each environment variable must have a unique name.');
         environment[key] = line.slice(separator + 1);
       }
-      const result = await this.api<{id: string}>(this.path(host) + '/containers', 'POST', { endpoint: host.endpoint, definition: {
+      const result = await this.api<{id: string; warning?: string}>(this.path(host) + '/containers', 'POST', { endpoint: host.endpoint, definition: {
         name: f.name, image: f.image, arguments: f.arguments ? f.arguments.split('\n') : [], environment, restartPolicy: f.restartPolicy, projectId: f.projectId || null,
         ports: f.hostPort !== null && f.containerPort !== null ? [{ host: f.hostPort, container: f.containerPort }] : [],
         mounts: f.volume ? [{ volume: f.volume, path: f.mountPath, readOnly: f.readOnly }] : []
       }});
       this.selectedId.set(result.id); this.tab.set('containers'); this.modal.set(null); await this.refresh();
+      if (result.warning) this.error.set(result.warning);
     } catch (e) { this.formError.set((e as Error).message); }
     finally { this.saving.set(false); releaseLoading(); }
   }
