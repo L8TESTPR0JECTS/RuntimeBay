@@ -5,6 +5,7 @@ import { DatePipe } from '@angular/common';
 import { Project, Service, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
 import { WorkflowContainers } from './workflow-containers';
+import { Databases } from './databases';
 import { Containers } from './containers';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
@@ -13,11 +14,11 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals, WorkflowContainers],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals, WorkflowContainers, Databases],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
-  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal'>('runtime');
+  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal' | 'databases'>('runtime');
   readonly loader = inject(LoadingService);
   private loadingTasks = this.loader.scope();
   readonly appearance = new Appearance(session, this.loader);
@@ -116,7 +117,7 @@ class App implements OnDestroy {
       this.projects.set(projects); this.connected.set(true);
       if (!projects.some(p => p.id === this.projectId())) this.selectProject(projects[0]?.id || null, false);
       const selected = this.service();
-      if (selected) await this.refreshLogs(this.projectId()!, selected.id);
+      if (selected && this.view() === 'runtime') await this.refreshLogs(this.projectId()!, selected.id);
     } catch { if (!this.destroyed) this.connected.set(false); }
     finally { this.loading.set(false); }
   }
@@ -137,14 +138,14 @@ class App implements OnDestroy {
   }
   selectTerminal(id: string) { this.terminals.selected.set(id); this.view.set('terminal'); }
   selectProject(id: string | null, switchView = true) {
-    if (switchView) this.view.set('runtime');
+    if (switchView && this.view() !== 'databases') this.view.set('runtime');
     this.projectId.set(id); this.selectService(this.project()?.services[0]?.id || null);
   }
   selectService(id: string | null) {
     if (this.serviceId() === id) return;
     this.selectionRevision++;
     this.serviceId.set(id); this.after = 0; this.logs.set([]); this.logFilter.set('');
-    if (id && this.projectId()) void this.loadingTasks.run('Loading service output…', () => this.refreshLogs(this.projectId()!, id)).catch(() => {});
+    if (id && this.projectId() && this.view() === 'runtime') void this.loadingTasks.run('Loading service output…', () => this.refreshLogs(this.projectId()!, id)).catch(() => {});
   }
   active(service: Service) { return ['running', 'starting', 'stopping'].includes(service.state); }
   busy(service: Service) { return this.pending().includes(service.id) || service.state === 'starting' || service.state === 'stopping'; }

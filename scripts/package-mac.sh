@@ -19,7 +19,7 @@ if [ -f dist/web/3rdpartylicenses.txt ]; then cp dist/web/3rdpartylicenses.txt "
 # jlink needs an empty output path. Remove only this app's generated runtime.
 rm -rf "$runtimebay_app/Contents/Resources/jre"
 runtimebay_jdk="$(/usr/libexec/java_home -v 25)"
-"$runtimebay_jdk/bin/jlink" --add-modules java.base,java.logging,java.management,java.sql,jdk.httpserver,jdk.unsupported --strip-debug --no-header-files --no-man-pages --output "$runtimebay_app/Contents/Resources/jre"
+"$runtimebay_jdk/bin/jlink" --add-modules java.base,java.net.http,java.logging,java.management,java.sql,jdk.httpserver,jdk.unsupported --strip-debug --no-header-files --no-man-pages --output "$runtimebay_app/Contents/Resources/jre"
 cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,8 +30,8 @@ cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>RuntimeBay</string>
 <key>CFBundleIconFile</key><string>RuntimeBay.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.1</string>
-<key>CFBundleVersion</key><string>7</string>
+<key>CFBundleShortVersionString</key><string>0.5.0</string>
+<key>CFBundleVersion</key><string>8</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSHumanReadableCopyright</key><string>Runtime Bay contributors</string>

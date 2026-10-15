@@ -19,6 +19,7 @@ final class ApiServer implements AutoCloseable {
     private final AppearanceStore appearance;
     private final TerminalManager terminals;
     private final WorkflowContainers workflowContainers;
+    private final DatabaseWorkspace databases;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -34,6 +35,7 @@ final class ApiServer implements AutoCloseable {
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"));
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
+        databases = new DatabaseWorkspace(store, new CloudBeaverRuntime(docker), "http://127.0.0.1:" + port());
         server.setExecutor(requests);
         server.createContext("/", this::handle);
     }
@@ -45,6 +47,7 @@ final class ApiServer implements AutoCloseable {
             String host = exchange.getRequestHeaders().getFirst("Host");
             if (!("127.0.0.1:" + port()).equals(host)) throw new ApiException(403, "Invalid host");
             String path = exchange.getRequestURI().getPath();
+            if (path.startsWith("/database/")) { databases.proxy(exchange); return; }
             if (path.startsWith("/api/")) {
                 String auth = exchange.getRequestHeaders().getFirst("Authorization");
                 if (auth == null || !MessageDigest.isEqual(("Bearer " + token).getBytes(StandardCharsets.UTF_8), auth.getBytes(StandardCharsets.UTF_8)))
@@ -70,7 +73,7 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }
         }
         if (path.equals("/api/status") && method.equals("GET")) {
-            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.4.1", "platform", "macOS")); return;
+            json(e, 200, Map.of("name", "Runtime Bay", "version", "0.5.0", "platform", "macOS")); return;
         }
         if (path.equals("/api/projects")) {
             if (method.equals("GET")) { json(e, 200, runtimes.projects()); return; }
@@ -78,6 +81,12 @@ final class ApiServer implements AutoCloseable {
                 JsonObject body = body(e);
                 json(e, 201, store.addProject(string(body, "name"), string(body, "path"))); return;
             }
+        }
+        if (parts.length == 4 && parts[1].equals("projects") && parts[3].equals("databases")) {
+            String project = parts[2];
+            if (method.equals("GET")) { var view = databases.status(project); databases.authorizeFrame(e, project); json(e, 200, view); return; }
+            if (method.equals("POST")) { var view = databases.start(project, string(body(e), "theme")); databases.authorizeFrame(e, project); json(e, 202, view); return; }
+            if (method.equals("DELETE")) { json(e, 200, databases.stop(project)); return; }
         }
         if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("containers")) {
             String project = parts[2];
@@ -262,5 +271,5 @@ final class ApiServer implements AutoCloseable {
         e.sendResponseHeaders(status, bytes.length);
         e.getResponseBody().write(bytes);
     }
-    @Override public void close() { server.stop(0); terminals.close(); requests.shutdownNow(); }
+    @Override public void close() { server.stop(0); databases.close(); terminals.close(); requests.shutdownNow(); }
 }

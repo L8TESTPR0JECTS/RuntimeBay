@@ -8,7 +8,7 @@
     <div class="workspace-items">
     <nav aria-label="Projects">
       @for (p of projects(); track p.id) {
-        <button class="project-link" [class.selected]="p.id === projectId() && view() === 'runtime'" (click)="selectProject(p.id)">
+        <button class="project-link" [class.selected]="p.id === projectId() && (view() === 'runtime' || view() === 'databases')" (click)="selectProject(p.id)">
           <span class="project-monogram">{{ p.name.slice(0, 2).toUpperCase() }}</span>
           <span class="project-link-text">{{ p.name }}<small>{{ p.services.length }} {{ p.services.length === 1 ? 'service' : 'services' }}</small></span>
           <span class="chevron">›</span>
@@ -26,10 +26,10 @@
       }
     </nav>
     </div>
-    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.4.1</small></div>
+    <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.5.0</small></div>
   </aside>
   <main>
-    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
+    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' || view() === 'databases' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> ON YOUR MAC</span></header>
     @if (view() === 'containers' || view() === 'hosts') {
       <app-containers [session]="sessionToken" [projects]="projects()" [page]="view() === 'hosts' ? 'hosts' : 'containers'" (navigate)="view.set($event)"></app-containers>
     } @else if (view() === 'runtime') {
@@ -39,6 +39,7 @@
       }
       @if (error()) { <div class="notice" role="alert">{{ error() }}<button aria-label="Dismiss error" (click)="error.set('')">×</button></div> }
       <div class="page-title"><div><div class="eyebrow">YOUR LOCAL DEVELOPMENT, IN ORDER</div><h1>{{ project()?.name || 'A place for everything running.' }}</h1><p class="subtitle">{{ project()?.path || 'Bring your services together. Keep your flow.' }}</p></div><span class="title-symbol" aria-hidden="true">◒</span></div>
+      @if (project()) { <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="true" class="selected">Runtime</button><button role="tab" aria-selected="false" (click)="view.set('databases')">Databases</button></div> }
       <div class="overview">
         <div class="stat"><span>PROJECTS</span><strong>{{ projects().length.toString().padStart(2, '0') }}</strong><small>in your workspace</small></div>
         <div class="stat"><span>SERVICES</span><strong>{{ serviceCount().toString().padStart(2, '0') }}</strong><small>ready to manage</small></div>
@@ -100,6 +101,7 @@
       <footer>Less juggling. More building.<span>RUNTIME BAY</span></footer>
     </div>
     }
+    <app-databases [projectId]="projectId() || ''" [projectName]="project()?.name || ''" [projectPath]="project()?.path || ''" [session]="sessionToken" [visible]="view() === 'databases'" (runtime)="view.set('runtime')"></app-databases>
     <app-terminals [workspace]="terminals" [visible]="view() === 'terminal'"></app-terminals>
   </main>
 </div>

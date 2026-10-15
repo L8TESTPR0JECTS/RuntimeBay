@@ -32,9 +32,10 @@ The question it helps answer is simple: **What is running, where is it running, 
 
 Your project files stay in their existing folders. Runtime Bay saves the commands you choose and runs them when you press Start. Its Java engine supervises those processes; its Angular interface keeps their state, output, and ports in view.
 
-| Workspace | Available in v0.4 |
+| Workspace | Available in v0.5 |
 | --- | --- |
 | **Projects & services** | Import folders; define commands and working directories; start, stop, and restart individual services or a project's services. |
+| **Databases** | A CloudBeaver Community table browser and SQL editor inside each workflow, with saved connections, filtering, staged grid edits, and transaction controls. |
 | **Workflow containers** | Link existing local or remote containers to a project workflow; inspect live status/ports and start, stop, restart, or unlink dependencies. |
 | **Workspace terminals** | Open independent interactive zsh tabs below your projects with **＋ Terminal** or **⌘T**; resize, switch, and close shells without leaving the app. |
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
@@ -61,6 +62,14 @@ Shell services and workspace terminals stop when Runtime Bay closes. Docker cont
 
 Workspace terminals start in the selected project’s root, or your home folder when there is no project. They keep running as you switch pages and reconnect after **⌘R**. Each tab has a close button that stops its shell and its processes. There is no application-imposed tab count; macOS resources set the practical limit. See [terminal behavior and lifecycle](docs/terminals.md).
 
+## Databases inside a workflow
+
+Open a project, choose **Databases**, then **Open database workspace**. Runtime Bay starts a local, app-owned CloudBeaver Community companion on Docker and displays its GUI inside the app. The first use downloads the pinned Community image; later opens reuse it. Use CloudBeaver’s **New Connection** to add MySQL, PostgreSQL, or another supported database. For a database published on your Mac, use `host.docker.internal` and its published port from inside this companion.
+
+The navigator, table grid, filters, sorting, SQL editor, and result grids belong to CloudBeaver. Grid changes are staged until **Save**; manual transaction mode also provides **Commit** and **Rollback**. SQL executes only when requested and follows that connection's transaction mode. Switching Runtime Bay views preserves the embedded editor. Connections and saved scripts survive app restarts; active transactions and unsaved edits should be resolved before closing the workspace or app.
+
+See [database architecture, storage, and limitations](docs/databases.md). CloudBeaver is an optional Apache-2.0 dependency, downloaded from its official container registry; it is not copied into the app bundle.
+
 ## Architecture
 
 ```mermaid
@@ -72,6 +81,9 @@ flowchart LR
   Supervisor --> Services["Project shell services"]
   API --> PTY["Native PTY supervisor per terminal"]
   PTY --> Shells["Independent interactive zsh shells"]
+  API --> Database["Private database gateway"]
+  Database --> CloudBeaver["Local CloudBeaver Community companion"]
+  CloudBeaver --> DB["Workflow database connections"]
   API --> Docker["User-installed Docker CLI"]
   Docker --> Local["Local Unix-socket engine"]
   Docker --> Remote["Remote SSH / verified TLS engine"]
@@ -158,7 +170,7 @@ Validation covers real process ownership and shutdown, independent PTY shells, i
 
 ## Project status
 
-**v0.4 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, container management, separate host navigation, and customization are implemented.
+**v0.5 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, an embedded database GUI, container management, separate host navigation, and customization are implemented.
 
 The broader direction is to connect Git, coding agents, API collections, debugger sessions, and deployments to the same projects and runs. Those integrations are planned and are not included in the current application. See [integration research](docs/integrations.md).
 

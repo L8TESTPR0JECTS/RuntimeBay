@@ -1,6 +1,6 @@
 # Runtime Bay architecture
 
-Status: v0.4, 2026-10-14. Service start/stop/restart, logs, ports, and container environments are implemented. Required stack: Java backend, Angular frontend, macOS first.
+Status: v0.5, 2026-10-14. Service start/stop/restart, logs, ports, and container environments are implemented. Required stack: Java backend, Angular frontend, macOS first.
 
 ## Product purpose
 
@@ -50,6 +50,10 @@ Start validates the project directory again, launches a native supervisor, and w
 Java serializes changes to each service's runtime. Stop sends TERM through the supervisor, allows three seconds for graceful exit, then escalates to KILL for that captured process group. Restart completes Stop before creating a new session. Exit becomes stopped, exited, or failed after both output streams have drained.
 
 The supervisor also watches its stdin pipe. If Java closes or crashes, pipe EOF triggers cleanup. If the shell exits while grandchildren remain, the supervisor cleans up that session before exiting. Commands that create another session to daemonize are outside this model; long-lived development commands should remain in the foreground.
+
+## Workflow databases
+
+Each workflow can start a local CloudBeaver Community companion through the [database subsystem](databases.md). A private, cookie-gated path in the existing Java HTTP server proxies its interface and API; CloudBeaver’s own login and cookies stay in the backend. The Angular shell keeps embedded frames mounted across view changes. The companion uses a loopback-only port, a persistent per-workflow directory, and an stdin watchdog for ownership cleanup. It receives neither the Docker socket nor project source mounts.
 
 ## Workflow containers
 

@@ -52,6 +52,13 @@ class ApiServerTest {
         assertEquals(200, status(request("/api/terminals/" + id).header("Authorization", "Bearer " + token).DELETE()));
         assertEquals(404, status(request("/api/terminals/" + id + "/output?after=0").header("Authorization", "Bearer " + token)));
     }
+    @Test void databaseWorkspaceEndpointsRequireTheAppTokenAndValidateBeforeStarting() throws Exception {
+        assertEquals(401, status(request("/api/projects/unknown/databases")));
+        assertEquals(401, status(request("/api/projects/unknown/databases").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"theme\":\"light\"}"))));
+        assertEquals(403, status(request("/api/projects/unknown/databases").header("Authorization", "Bearer " + token).header("Origin", "https://example.com").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"theme\":\"light\"}"))));
+        assertEquals(400, status(request("/api/projects/unknown/databases").header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"theme\":\"unexpected\"}"))));
+        assertEquals(404, status(request("/database/unknown/")));
+    }
     @Test void servesAssetsWithSecurityHeadersAndBlocksTraversal() throws Exception {
         var response = client.send(request("/").build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());

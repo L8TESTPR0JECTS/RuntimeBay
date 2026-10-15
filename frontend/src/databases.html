@@ -1,0 +1,20 @@
+<section class="database-page" [hidden]="!visible">
+  <div class="page-title"><div><div class="eyebrow">YOUR DATA, WITHIN REACH</div><h1>{{ projectName || 'Databases' }}</h1><p class="subtitle">{{ projectPath }}</p></div><span class="title-symbol" aria-hidden="true">▦</span></div>
+  <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="false" (click)="runtime.emit()">Runtime</button><button role="tab" aria-selected="true" class="selected">Databases</button></div>
+  @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="refresh()">Retry</button></div> }
+  @if (status()?.state === 'ready') {
+    <div class="database-toolbar"><span><i class="tiny-dot"></i> Table browser & SQL editor <small>CloudBeaver Community {{ status()!.version }}</small></span><button class="text-button" (click)="stop()" [disabled]="busy()" title="Close this companion; saved connections and scripts are kept">Close database workspace</button></div>
+  } @else {
+    <div class="database-welcome"><span class="database-symbol" aria-hidden="true">▦</span><div class="eyebrow">LESS SWITCHING. MORE CLARITY.</div><h2>{{ status()?.state === 'stopping' ? 'Closing your database workspace.' : status()?.state === 'starting' ? 'Preparing your database workspace.' : 'See your data. Stay in your flow.' }}</h2><p>Browse tables, filter rows, edit data, and run SQL<br>alongside this workflow’s services and containers.</p>
+      @if (status()?.state === 'starting' || status()?.state === 'stopping') { <p class="database-progress" role="status">{{ status()!.message }}</p> }
+      @else { <button class="primary" (click)="start()" [disabled]="busy() || !status()">{{ busy() ? 'Opening…' : status()?.state === 'failed' ? 'Try again' : 'Open database workspace' }}</button>@if (status()?.state === 'failed') { <p class="form-error" role="alert">{{ status()!.message }}</p> } }
+      <small>Runs CloudBeaver Community locally with Docker. The first use downloads its image.<br>Connections and scripts stay with this workflow. Database credentials are entered in the connection dialog.</small>
+    </div>
+  }
+  @for (pane of panes(); track pane.id) {
+    <div class="database-frame-wrap" [hidden]="pane.id !== projectId || status()?.state !== 'ready'">
+      <iframe [src]="pane.url" [title]="pane.name + ' database browser'" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals" referrerpolicy="no-referrer" (load)="loaded(pane.id)"></iframe>
+    </div>
+  }
+  @if (status()?.state === 'ready') { <p class="database-foot">Table edits are staged until you press Save. Review SQL before you run it; SQL commands can change data immediately in auto-commit mode.</p> }
+</section>
