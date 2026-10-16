@@ -2,8 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Convert the supplied artwork to Apple's multi-resolution icon format.
-runtimebay_icon_source="$PWD/frontend/src/assets/runtime-bay.png"
+# Finder and Dock use the same Sage artwork as the README; UI masks remain themeable.
+mkdir -p .build .cache/swift
+swift -module-cache-path "$PWD/.cache/swift" scripts/render-icon.swift "$PWD/docs/assets/runtime-bay-sage.svg" "$PWD/.build/runtime-bay-sage.png"
+runtimebay_icon_source="$PWD/.build/runtime-bay-sage.png"
 runtimebay_iconset="$PWD/.build/RuntimeBay.iconset"
 mkdir -p "$runtimebay_iconset"
 for runtimebay_icon_size in 16 32 128 256 512; do
