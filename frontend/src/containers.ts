@@ -36,7 +36,8 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   saving = signal(false);
   operation = signal<DockerOperation | null>(null);
   operationBusy = computed(() => !!this.operation() && ['queued', 'running', 'cancelling'].includes(this.operation()!.state));
-  hostForm = { name: '', endpoint: '' };
+  hostForm = { name: '', endpoint: '', description: '' };
+  editingHost = signal<DockerEnvironment | null>(null);
   pullImage = '';
   createForm = { name: '', image: '', arguments: '', environment: '', hostPort: null as number | null, containerPort: null as number | null, restartPolicy: 'no', projectId: '', volume: '', mountPath: '/data', readOnly: false };
   private modalHost: DockerEnvironment | null = null;
@@ -150,9 +151,15 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   runAction(container: DockerContainer, action: 'start' | 'stop' | 'restart' | 'pause' | 'unpause') { void this.action(container, action).catch(() => {}); }
   openModal(type: 'host' | 'create' | 'pull', image = '') {
     this.formError.set(''); this.modalHost = this.host(); this.modal.set(type);
-    if (type === 'host') this.hostForm = { name: '', endpoint: '' };
+    if (type === 'host') { this.editingHost.set(null); this.hostForm = { name: '', endpoint: '', description: '' }; }
     if (type === 'pull') this.pullImage = image;
     if (type === 'create') this.createForm = { name: '', image, arguments: '', environment: '', hostPort: null, containerPort: null, restartPolicy: 'no', projectId: '', volume: '', mountPath: '/data', readOnly: false };
+  }
+  editHost(host: DockerEnvironment) {
+    if (host.name === 'default') return;
+    this.formError.set(''); this.editingHost.set({ ...host });
+    this.hostForm = { name: host.name, endpoint: host.endpoint, description: host.description };
+    this.modal.set('host');
   }
   askRemove(container: DockerContainer) { this.removeTarget = container; this.modalHost = this.host(); this.formError.set(''); this.modal.set('remove'); }
   removeName() { return this.removeTarget?.name || ''; }
@@ -167,9 +174,18 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     finally { this.saving.set(false); releaseLoading(); }
   }
   async addHost() {
-    const releaseLoading = this.loadingTasks.begin('Adding remote host…');
+    if (this.saving()) return;
+    const editing = this.editingHost();
+    const releaseLoading = this.loadingTasks.begin(editing ? 'Saving host changes…' : 'Adding remote host…');
     this.saving.set(true); this.formError.set('');
-    try { const host = await this.api<DockerEnvironment>('/environments', 'POST', this.hostForm); await this.loadHosts(); this.selectHost(host.name); this.modal.set(null); }
+    try {
+      const host = editing
+        ? await this.api<DockerEnvironment>(this.path(editing), 'PUT', { expectedEndpoint: editing.endpoint, endpoint: this.hostForm.endpoint.trim(), description: this.hostForm.description.trim() })
+        : await this.api<DockerEnvironment>('/environments', 'POST', { name: this.hostForm.name.trim(), endpoint: this.hostForm.endpoint.trim() });
+      // Invalidate in-flight reads before replacing the address snapshot.
+      this.revision++; this.detailsRevision++; this.overview.set(null); this.inventory.set(null); this.details.set(null); this.selectedId.set(''); this.error.set(''); this.detailError.set('');
+      await this.loadHosts(); this.selectHost(host.name); this.modal.set(null);
+    }
     catch (e) { this.formError.set((e as Error).message); }
     finally { this.saving.set(false); releaseLoading(); }
   }

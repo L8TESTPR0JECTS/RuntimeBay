@@ -11,6 +11,8 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 
 final class DockerService implements AutoCloseable {
@@ -21,6 +23,7 @@ final class DockerService implements AutoCloseable {
     private final ExecutorService jobs = Executors.newVirtualThreadPerTaskExecutor();
     private final LinkedHashMap<String, Pull> pulls = new LinkedHashMap<>();
     private final ReentrantLock[] locks = new ReentrantLock[32];
+    private final ReentrantReadWriteLock[] contextLocks = new ReentrantReadWriteLock[32];
     private volatile boolean closing;
     private static final class Pull {
         final String id = UUID.randomUUID().toString();
@@ -35,7 +38,7 @@ final class DockerService implements AutoCloseable {
         synchronized void append(String text) { output.append(text); if (output.length() > 65536) output.delete(0, output.length() - 65536); }
         synchronized Operation view() { return new Operation(id, environment.name(), environment.endpoint(), image, state, output.toString(), error, createdAt); }
     }
-    DockerService(Commands commands) { this.commands = commands; Arrays.setAll(locks, i -> new ReentrantLock()); }
+    DockerService(Commands commands) { this.commands = commands; Arrays.setAll(locks, i -> new ReentrantLock()); Arrays.setAll(contextLocks, i -> new ReentrantReadWriteLock()); }
     static DockerService discover() {
         Path path = DockerCommandRunner.discover(); return new DockerService(path == null ? null : new DockerCommandRunner(path));
     }
@@ -61,6 +64,42 @@ final class DockerService implements AutoCloseable {
         validateSsh(endpoint);
         execute(List.of("context", "create", name, "--description", "Runtime Bay SSH environment", "--docker", "host=" + endpoint), READ_TIMEOUT, null);
         return resolve(name, endpoint);
+    }
+    Environment updateEnvironment(String name, String expectedEndpoint, String endpoint, String description) {
+        if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
+        Lock lock = contextLock(name).writeLock();
+        if (!lock.tryLock()) throw new ApiException(409, "This host is busy. Wait for its current operation to finish, then save again.");
+        try { return updateContext(name, expectedEndpoint, endpoint, description); }
+        finally { lock.unlock(); }
+    }
+    private Environment updateContext(String name, String expectedEndpoint, String endpoint, String description) {
+        if (name.equals("default")) throw new ApiException(400, "Docker manages the default context. Edit a named context instead.");
+        if (expectedEndpoint == null || expectedEndpoint.isBlank()) throw new ApiException(400, "Refresh hosts before editing this environment");
+        if (description == null || description.length() > 512 || description.chars().anyMatch(Character::isISOControl)) throw new ApiException(400, "Use a description of up to 512 characters on one line");
+        JsonArray inspected = JsonParser.parseString(execute(List.of("context", "inspect", name), READ_TIMEOUT, null).stdout()).getAsJsonArray();
+        if (inspected.isEmpty()) throw new ApiException(404, "Docker environment not found");
+        Environment current = environment(inspected.get(0).getAsJsonObject(), false);
+        if (!expectedEndpoint.equals(current.endpoint())) throw new ApiException(409, "This host changed while you were editing it. Refresh hosts and try again.");
+        if (endpoint == null || endpoint.isBlank()) throw new ApiException(400, "Enter a host address");
+        boolean addressChanged = !endpoint.equals(current.endpoint());
+        if (addressChanged) {
+            if (current.transport().equals("ssh")) validateSsh(endpoint);
+            else if (current.transport().equals("local")) {
+                try {
+                    URI uri = URI.create(endpoint);
+                    if (!"unix".equals(uri.getScheme()) || uri.getRawAuthority() != null || uri.getQuery() != null || uri.getFragment() != null || uri.getPath() == null || !uri.getPath().startsWith("/") || endpoint.contains(",") || endpoint.chars().anyMatch(Character::isISOControl)) throw new IllegalArgumentException();
+                } catch (IllegalArgumentException e) { throw new ApiException(400, "Use an absolute Unix socket address such as unix:///var/run/docker.sock"); }
+            } else throw new ApiException(400, "Update verified TLS or unsupported connection addresses through Docker, then refresh hosts here.");
+            synchronized (pulls) {
+                if (pulls.values().stream().anyMatch(p -> p.environment.name().equals(name) && List.of("queued", "running", "cancelling").contains(p.view().state())))
+                    throw new ApiException(409, "Finish or cancel this host's image pull before changing its address");
+            }
+        }
+        var arguments = new ArrayList<>(List.of("context", "update", name, "--description", description));
+        if (addressChanged) arguments.addAll(List.of("--docker", "host=" + endpoint));
+        execute(arguments, READ_TIMEOUT, null);
+        JsonArray updated = JsonParser.parseString(execute(List.of("context", "inspect", name), READ_TIMEOUT, null).stdout()).getAsJsonArray();
+        return environment(updated.get(0).getAsJsonObject(), false);
     }
     Environment resolve(String name, String expectedEndpoint) {
         if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
@@ -239,8 +278,14 @@ final class DockerService implements AutoCloseable {
         Result result = rawOn(env, args, timeout, progress); if (result.exitCode() != 0) throw new ApiException(502, error(result)); return result;
     }
     private Result rawOn(Environment env, List<String> args, Duration timeout, Consumer<String> progress) {
-        var arguments = new ArrayList<>(List.of("--context", env.name())); arguments.addAll(args); return raw(arguments, timeout, progress);
+        Lock lock = contextLock(env.name()).readLock(); lock.lock();
+        try {
+            // An edit between inspection and execution must not retarget a queued command.
+            resolve(env.name(), env.endpoint());
+            var arguments = new ArrayList<>(List.of("--context", env.name())); arguments.addAll(args); return raw(arguments, timeout, progress);
+        } finally { lock.unlock(); }
     }
+    private ReentrantReadWriteLock contextLock(String name) { return contextLocks[Math.floorMod(name.hashCode(), contextLocks.length)]; }
     private Result execute(List<String> args, Duration timeout, Consumer<String> progress) {
         Result result = raw(args, timeout, progress); if (result.exitCode() != 0) throw new ApiException(502, error(result)); return result;
     }

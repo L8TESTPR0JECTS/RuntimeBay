@@ -23,6 +23,10 @@ docker --context dev-server info
 
 Refresh **Hosts** and use **View containers**, or choose it in the **Containers** host selector. Every request targets that explicit context. If its address changes, refresh and select it again.
 
+Use **Edit host** on a host card to update its description and SSH address (user, hostname, port, and optional socket path), or a named local context's Unix socket address. Fields start with the current values; **Save changes** updates the existing [Docker context](https://docs.docker.com/reference/cli/docker/context/update/) without switching your global context or contacting the engine. A host can therefore be edited while its connection is failing. The context name remains its stable identifier. Docker's virtual `default` context is managed externally; TLS contexts allow description changes here, while their connection addresses and certificate settings remain managed through Docker.
+
+Edits use the original address as a snapshot: a concurrent address change is rejected with a refresh message. An edit is refused while the host has an operation in flight, and queued commands recheck their address before execution. Existing workflow container links keep their original endpoint and refuse operations after an address change; unlink and relink them explicitly. Running containers are not stopped or moved. A failed save leaves the form open with its error and entered values.
+
 Existing TCP contexts require verified mutual TLS with a trusted CA, client certificate, and client key. Unverified or unauthenticated TCP contexts are unsupported. See [Docker's SSH/TLS documentation](https://docs.docker.com/engine/security/protect-access/).
 
 ## Containers

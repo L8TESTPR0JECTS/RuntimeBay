@@ -26,7 +26,7 @@ class DockerServiceTest {
         volatile CountDownLatch pulling, release;
         volatile Path envFile;
         volatile String envContents;
-        volatile boolean failPull;
+        volatile boolean failPull, failUpdate;
         FakeDocker() {
             contexts.put("local", context("local", LOCAL, false, false));
             contexts.put("remote", context("remote", REMOTE, false, false));
@@ -54,6 +54,12 @@ class DockerServiceTest {
                         return ok(results.toString());
                     case "create":
                         contexts.put(args.get(2), context(args.get(2), args.getLast().substring("host=".length()), false, false));
+                        return ok(args.get(2));
+                    case "update":
+                        if (failUpdate) return new DockerService.Result(1, "", "fixture update failed");
+                        JsonObject updated = contexts.get(args.get(2));
+                        updated.getAsJsonObject("Metadata").addProperty("Description", args.get(args.indexOf("--description") + 1));
+                        if (args.contains("--docker")) updated.getAsJsonObject("Endpoints").getAsJsonObject("docker").addProperty("Host", args.get(args.indexOf("--docker") + 1).substring("host=".length()));
                         return ok(args.get(2));
                 }
             }
@@ -164,6 +170,41 @@ class DockerServiceTest {
         assertEquals("ssh", created.transport());
         assertTrue(fake.calls.stream().anyMatch(a -> a.equals(List.of("context", "create", "new-host", "--description", "Runtime Bay SSH environment", "--docker", "host=ssh://user@new.example.com:2222"))));
         assertTrue(fake.calls.stream().noneMatch(a -> a.contains("use")));
+    }
+    @Test void editsHostDetailsInPlaceWithoutSwitchingContextAndRejectsOldSnapshots() {
+        String address = "ssh://alek@helfer:2222/run/user/1000/docker.sock";
+        Environment updated = docker.updateEnvironment("remote", REMOTE, address, "Helfer development engine");
+        assertEquals(address, updated.endpoint()); assertEquals("Helfer development engine", updated.description()); assertEquals("remote", updated.name());
+        assertTrue(fake.calls.contains(List.of("context", "update", "remote", "--description", "Helfer development engine", "--docker", "host=" + address)));
+        assertTrue(fake.calls.stream().noneMatch(a -> a.contains("use") || a.contains("rm") || a.contains("create")));
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, "ssh://another", "stale")).status);
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.overview("remote", REMOTE)).status);
+        assertEquals(address, docker.resolve("remote", address).endpoint());
+    }
+    @Test void validatesEditAddressesAndPreservesTlsMaterialOnDescriptionOnlyUpdates() {
+        for (String invalid : List.of("tcp://unsafe:2375", "ssh://user:password@host", "ssh://user@host,skip-tls-verify=true", "ssh://user@host?option=x"))
+            assertEquals(400, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, invalid, "fixture")).status);
+        assertEquals(400, assertThrows(ApiException.class, () -> docker.updateEnvironment("default", LOCAL, LOCAL, "fixture")).status);
+        assertThrows(ApiException.class, () -> docker.updateEnvironment("local", LOCAL, "unix:///tmp/socket,skip-tls-verify=true", "fixture"));
+        assertThrows(ApiException.class, () -> docker.updateEnvironment("local", LOCAL, "unix://remote/tmp/socket", "fixture"));
+        assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, REMOTE, "description\nsecond line"));
+        assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, REMOTE, "x".repeat(513)));
+        assertEquals("unix:///tmp/other.sock", docker.updateEnvironment("local", LOCAL, "unix:///tmp/other.sock", "Local test engine").endpoint());
+        JsonObject tlsBefore = fake.contexts.get("tls").deepCopy();
+        assertEquals("tls", docker.updateEnvironment("tls", "tcp://tls.example.com:2376", "tcp://tls.example.com:2376", "TLS production engine").transport());
+        assertEquals(tlsBefore.get("TLSMaterial"), fake.contexts.get("tls").get("TLSMaterial"));
+        assertEquals(tlsBefore.get("Endpoints"), fake.contexts.get("tls").get("Endpoints"));
+        assertThrows(ApiException.class, () -> docker.updateEnvironment("tls", "tcp://tls.example.com:2376", "tcp://other:2376", "TLS"));
+    }
+    @Test void surfacesUpdateFailuresWithoutChangingConnectionAndBlocksEditsDuringPulls() throws Exception {
+        fake.failUpdate = true;
+        assertEquals(502, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, "ssh://other", "test")).status);
+        assertEquals(REMOTE, docker.resolve("remote", REMOTE).endpoint());
+        fake.failUpdate = false; fake.pulling = new CountDownLatch(1); fake.release = new CountDownLatch(1);
+        Operation pull = docker.pull("remote", REMOTE, "nginx:alpine");
+        assertTrue(fake.pulling.await(3, TimeUnit.SECONDS));
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertEquals(409, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, "ssh://other", "test")).status));
+        docker.cancel(pull.id());
     }
     @Test void tracksPullProgressAndCancelsAnInFlightPull() throws Exception {
         fake.pulling = new CountDownLatch(1); fake.release = new CountDownLatch(1);

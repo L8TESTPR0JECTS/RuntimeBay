@@ -49,6 +49,18 @@ class DockerApiTest {
         assertEquals(400, post("/environments/remote/containers/--all/stop", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\"}").statusCode());
         assertEquals(400, post("/environments/remote/containers", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"definition\":{\"name\":\"fraction\",\"image\":\"nginx:alpine\",\"ports\":[{\"host\":8080.5,\"container\":80}]}}").statusCode());
     }
+    @Test void editsHostsWithAuthenticationOriginChecksAndEndpointSnapshots() throws Exception {
+        String body = "{\"expectedEndpoint\":\"" + DockerServiceTest.REMOTE + "\",\"endpoint\":\"ssh://alek@helfer:2222\",\"description\":\"Helfer\"}";
+        for (boolean authenticated : new boolean[]{false, true}) {
+            var builder = request("/environments/remote", authenticated).header("Content-Type", "application/json");
+            if (authenticated) builder.header("Origin", "https://example.com");
+            assertEquals(authenticated ? 403 : 401, client.send(builder.PUT(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        }
+        assertEquals(DockerServiceTest.REMOTE, fixture.contexts.get("remote").getAsJsonObject("Endpoints").getAsJsonObject("docker").get("Host").getAsString());
+        var updated = client.send(request("/environments/remote", true).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updated.statusCode()); assertTrue(updated.body().contains("ssh://alek@helfer:2222"));
+        assertEquals(409, client.send(request("/environments/remote", true).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
     @Test void workflowContainerEndpointsAuthenticatePersistAndUnlinkWithoutDockerMutation() throws Exception {
         String project = store.addProject("Workflow fixture", temporary.toString()).id();
         String path = "http://127.0.0.1:" + server.port() + "/api/projects/" + project + "/containers";
