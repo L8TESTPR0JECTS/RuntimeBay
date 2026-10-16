@@ -2,6 +2,8 @@
 
 # Runtime Bay
 
+<img src="frontend/src/assets/runtime-bay.png" alt="Runtime Bay logo" width="160">
+
 ### A home for everything running.
 
 **A macOS workspace for developers who want a clearer view of their services, containers, and machines.**
