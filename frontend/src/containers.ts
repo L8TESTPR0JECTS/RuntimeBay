@@ -31,13 +31,14 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   error = signal('');
   detailError = signal('');
   pending = signal<string[]>([]);
-  modal = signal<'host' | 'create' | 'pull' | 'remove' | null>(null);
+  modal = signal<'host' | 'create' | 'pull' | 'remove' | 'remove-host' | null>(null);
   formError = signal('');
   saving = signal(false);
   operation = signal<DockerOperation | null>(null);
   operationBusy = computed(() => !!this.operation() && ['queued', 'running', 'cancelling'].includes(this.operation()!.state));
   hostForm = { name: '', endpoint: '', description: '' };
   editingHost = signal<DockerEnvironment | null>(null);
+  removingHost = signal<DockerEnvironment | null>(null);
   pullImage = '';
   createForm = { name: '', image: '', arguments: '', environment: '', hostPort: null as number | null, containerPort: null as number | null, restartPolicy: 'no', projectId: '', volume: '', mountPath: '/data', readOnly: false };
   private modalHost: DockerEnvironment | null = null;
@@ -160,6 +161,23 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     this.formError.set(''); this.editingHost.set({ ...host });
     this.hostForm = { name: host.name, endpoint: host.endpoint, description: host.description };
     this.modal.set('host');
+  }
+  askRemoveHost(host: DockerEnvironment) {
+    if (host.name === 'default' || host.current) return;
+    this.formError.set(''); this.removingHost.set({ ...host }); this.modal.set('remove-host');
+  }
+  async removeHost() {
+    const host = this.removingHost(); if (!host || this.saving()) return;
+    const releaseLoading = this.loadingTasks.begin(`Removing ${host.name}…`);
+    this.saving.set(true); this.formError.set('');
+    try {
+      await this.api(this.path(host), 'DELETE', { expectedEndpoint: host.endpoint });
+      if (host.name === this.hostName()) {
+        this.revision++; this.detailsRevision++; this.hostName.set(''); this.overview.set(null); this.inventory.set(null); this.details.set(null); this.selectedId.set(''); this.error.set(''); this.detailError.set('');
+      }
+      await this.loadHosts(); this.modal.set(null); this.removingHost.set(null);
+    } catch (e) { this.formError.set((e as Error).message); }
+    finally { this.saving.set(false); releaseLoading(); }
   }
   askRemove(container: DockerContainer) { this.removeTarget = container; this.modalHost = this.host(); this.formError.set(''); this.modal.set('remove'); }
   removeName() { return this.removeTarget?.name || ''; }

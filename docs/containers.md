@@ -27,6 +27,8 @@ Use **Edit host** on a host card to update its description and SSH address (user
 
 Edits use the original address as a snapshot: a concurrent address change is rejected with a refresh message. An edit is refused while the host has an operation in flight, and queued commands recheck their address before execution. Existing workflow container links keep their original endpoint and refuse operations after an address change; unlink and relink them explicitly. Running containers are not stopped or moved. A failed save leaves the form open with its error and entered values.
 
+**Remove host** opens a confirmation showing the host's name and address. Confirming removes that saved Docker context from your Mac using [`docker context rm`](https://docs.docker.com/reference/cli/docker/context/rm/); no engine resources or remote machine data are deleted. Workflow links are retained and become unavailable until the same connection is restored or the links are explicitly removed. The Docker-managed `default` context and Docker's currently active context cannot be removed here; select a different active context through Docker first. Busy hosts and changed endpoint snapshots are rejected. Runtime Bay does not force removal or switch the global Docker context. Canceling leaves the connection intact; errors leave the confirmation open for retry.
+
 Existing TCP contexts require verified mutual TLS with a trusted CA, client certificate, and client key. Unverified or unauthenticated TCP contexts are unsupported. See [Docker's SSH/TLS documentation](https://docs.docker.com/engine/security/protect-access/).
 
 ## Containers

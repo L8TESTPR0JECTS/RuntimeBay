@@ -72,6 +72,28 @@ final class DockerService implements AutoCloseable {
         try { return updateContext(name, expectedEndpoint, endpoint, description); }
         finally { lock.unlock(); }
     }
+    void removeEnvironment(String name, String expectedEndpoint) {
+        if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
+        if (name.equals("default")) throw new ApiException(400, "Docker manages the default context; it cannot be removed");
+        if (expectedEndpoint == null || expectedEndpoint.isBlank()) throw new ApiException(400, "Refresh hosts before removing this environment");
+        Lock lock = contextLock(name).writeLock();
+        if (!lock.tryLock()) throw new ApiException(409, "This host is busy. Wait for its current operation to finish, then remove it again.");
+        try {
+            JsonArray inspected = JsonParser.parseString(execute(List.of("context", "inspect", name), READ_TIMEOUT, null).stdout()).getAsJsonArray();
+            if (inspected.isEmpty()) throw new ApiException(404, "Docker environment not found");
+            String actualEndpoint = environment(inspected.get(0).getAsJsonObject(), false).endpoint();
+            if (!expectedEndpoint.equals(actualEndpoint)) throw new ApiException(409, "This host's address changed. Refresh hosts before removing it.");
+            List<JsonObject> contexts = lines(execute(List.of("context", "ls", "--format", "{{json .}}"), READ_TIMEOUT, null).stdout());
+            if (contexts.stream().anyMatch(c -> name.equals(text(c, "Name")) && bool(c, "Current")))
+                throw new ApiException(409, "This is Docker's active context. Choose another active context in Docker before removing it.");
+            synchronized (pulls) {
+                if (pulls.values().stream().anyMatch(p -> p.environment.name().equals(name) && List.of("queued", "running", "cancelling").contains(p.view().state())))
+                    throw new ApiException(409, "Finish or cancel this host's image pull before removing it");
+            }
+            // No engine command and no --force: Docker also protects its active context.
+            execute(List.of("context", "rm", name), READ_TIMEOUT, null);
+        } finally { lock.unlock(); }
+    }
     private Environment updateContext(String name, String expectedEndpoint, String endpoint, String description) {
         if (name.equals("default")) throw new ApiException(400, "Docker manages the default context. Edit a named context instead.");
         if (expectedEndpoint == null || expectedEndpoint.isBlank()) throw new ApiException(400, "Refresh hosts before editing this environment");

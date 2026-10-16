@@ -26,7 +26,7 @@ class DockerServiceTest {
         volatile CountDownLatch pulling, release;
         volatile Path envFile;
         volatile String envContents;
-        volatile boolean failPull, failUpdate;
+        volatile boolean failPull, failUpdate, failRemove;
         FakeDocker() {
             contexts.put("local", context("local", LOCAL, false, false));
             contexts.put("remote", context("remote", REMOTE, false, false));
@@ -61,6 +61,9 @@ class DockerServiceTest {
                         updated.getAsJsonObject("Metadata").addProperty("Description", args.get(args.indexOf("--description") + 1));
                         if (args.contains("--docker")) updated.getAsJsonObject("Endpoints").getAsJsonObject("docker").addProperty("Host", args.get(args.indexOf("--docker") + 1).substring("host=".length()));
                         return ok(args.get(2));
+                    case "rm":
+                        if (failRemove) return new DockerService.Result(1, "", "fixture removal failed");
+                        contexts.remove(args.get(2)); return ok(args.get(2));
                 }
             }
             assertEquals("--context", args.get(0));
@@ -181,6 +184,28 @@ class DockerServiceTest {
         assertEquals(409, assertThrows(ApiException.class, () -> docker.overview("remote", REMOTE)).status);
         assertEquals(address, docker.resolve("remote", address).endpoint());
     }
+    @Test void removesOnlyTheNamedSavedContextWithoutTouchingEngineResources() {
+        docker.removeEnvironment("remote", REMOTE);
+        assertFalse(fake.contexts.containsKey("remote"));
+        assertTrue(fake.contexts.containsKey("local")); assertTrue(fake.running);
+        assertEquals(List.of("context", "rm", "remote"), fake.calls.getLast());
+        assertTrue(fake.calls.stream().allMatch(a -> a.getFirst().equals("context")));
+        assertTrue(fake.calls.stream().noneMatch(a -> a.contains("--force") || a.contains("use")));
+        // Unsupported hosts can be removed as well, without requiring a connection.
+        docker.removeEnvironment("unsafe", "tcp://unsafe.example.com:2375");
+        assertFalse(fake.contexts.containsKey("unsafe"));
+    }
+    @Test void protectsDefaultActiveChangedAndInvalidHostsAndReportsRemovalFailure() {
+        assertEquals(400, assertThrows(ApiException.class, () -> docker.removeEnvironment("default", LOCAL)).status);
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.removeEnvironment("local", LOCAL)).status);
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.removeEnvironment("remote", "ssh://stale")).status);
+        assertEquals(400, assertThrows(ApiException.class, () -> docker.removeEnvironment("--all", REMOTE)).status);
+        assertEquals(400, assertThrows(ApiException.class, () -> docker.removeEnvironment("remote", "")).status);
+        assertTrue(fake.calls.stream().noneMatch(a -> a.contains("rm")));
+        fake.failRemove = true;
+        assertEquals(502, assertThrows(ApiException.class, () -> docker.removeEnvironment("remote", REMOTE)).status);
+        assertTrue(fake.contexts.containsKey("remote"));
+    }
     @Test void validatesEditAddressesAndPreservesTlsMaterialOnDescriptionOnlyUpdates() {
         for (String invalid : List.of("tcp://unsafe:2375", "ssh://user:password@host", "ssh://user@host,skip-tls-verify=true", "ssh://user@host?option=x"))
             assertEquals(400, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, invalid, "fixture")).status);
@@ -204,6 +229,7 @@ class DockerServiceTest {
         Operation pull = docker.pull("remote", REMOTE, "nginx:alpine");
         assertTrue(fake.pulling.await(3, TimeUnit.SECONDS));
         assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertEquals(409, assertThrows(ApiException.class, () -> docker.updateEnvironment("remote", REMOTE, "ssh://other", "test")).status));
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> assertEquals(409, assertThrows(ApiException.class, () -> docker.removeEnvironment("remote", REMOTE)).status));
         docker.cancel(pull.id());
     }
     @Test void tracksPullProgressAndCancelsAnInFlightPull() throws Exception {

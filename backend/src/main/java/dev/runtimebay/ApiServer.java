@@ -187,6 +187,11 @@ final class ApiServer implements AutoCloseable {
             JsonObject value = body(e);
             json(e, 200, docker.updateEnvironment(parts[3], string(value, "expectedEndpoint"), string(value, "endpoint"), string(value, "description"))); return;
         }
+        if (parts.length == 4 && parts[2].equals("environments") && method.equals("DELETE")) {
+            JsonObject value = body(e);
+            docker.removeEnvironment(parts[3], string(value, "expectedEndpoint"));
+            json(e, 200, Map.of("removed", true)); return;
+        }
         if (parts.length >= 5 && parts[2].equals("environments")) {
             String context = parts[3];
             if (parts.length == 5 && method.equals("GET")) {

@@ -61,6 +61,23 @@ class DockerApiTest {
         assertEquals(200, updated.statusCode()); assertTrue(updated.body().contains("ssh://alek@helfer:2222"));
         assertEquals(409, client.send(request("/environments/remote", true).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
     }
+    @Test void removesHostMetadataWithAuthenticationAndRetainsWorkflowLinks() throws Exception {
+        String body = "{\"expectedEndpoint\":\"" + DockerServiceTest.REMOTE + "\"}";
+        for (boolean authenticated : new boolean[]{false, true}) {
+            var builder = request("/environments/remote", authenticated).header("Content-Type", "application/json");
+            if (authenticated) builder.header("Origin", "https://example.com");
+            assertEquals(authenticated ? 403 : 401, client.send(builder.method("DELETE", HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        }
+        String project = store.addProject("Fixture workflow", temporary.toString()).id();
+        WorkflowContainers workflows = new WorkflowContainers(store, docker);
+        var link = workflows.record(project, "remote", DockerServiceTest.REMOTE, DockerServiceTest.ID, "api", "nginx");
+        fixture.calls.clear();
+        var removed = client.send(request("/environments/remote", true).header("Content-Type", "application/json").method("DELETE", HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, removed.statusCode()); assertTrue(removed.body().contains("true"));
+        assertFalse(fixture.contexts.containsKey("remote")); assertTrue(fixture.running);
+        assertEquals(link, workflows.list(project).getFirst());
+        assertTrue(fixture.calls.stream().allMatch(a -> a.getFirst().equals("context")));
+    }
     @Test void workflowContainerEndpointsAuthenticatePersistAndUnlinkWithoutDockerMutation() throws Exception {
         String project = store.addProject("Workflow fixture", temporary.toString()).id();
         String path = "http://127.0.0.1:" + server.port() + "/api/projects/" + project + "/containers";
