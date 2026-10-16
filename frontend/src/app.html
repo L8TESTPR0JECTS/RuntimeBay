@@ -141,6 +141,9 @@
         <button [attr.aria-pressed]="appearance.preferences().appearance === 'dark'" (click)="appearance.chooseMode('dark')" [disabled]="appearance.loading()">☾ Dark</button>
         <button [attr.aria-pressed]="appearance.preferences().appearance === 'system'" (click)="appearance.chooseMode('system')" [disabled]="appearance.loading()">▱ System</button>
       </div><p class="appearance-note">System follows your Mac’s appearance.</p>
+      <div class="font-size-heading"><h3><label for="workspace-font-size">Font size</label></h3><output for="workspace-font-size">{{ appearance.preferences().fontSize }} px</output></div>
+      <div class="font-size-controls"><span aria-hidden="true">A</span><input id="workspace-font-size" type="range" min="12" max="20" step="1" [ngModel]="appearance.preferences().fontSize" (ngModelChange)="appearance.chooseFontSize(+$event)" [disabled]="appearance.loading()" [attr.aria-valuetext]="appearance.preferences().fontSize + ' pixels base font size'"><span aria-hidden="true">A</span><button (click)="appearance.chooseFontSize(appearance.defaultFontSize)" [disabled]="appearance.loading() || appearance.preferences().fontSize === appearance.defaultFontSize">Reset</button></div>
+      <p class="appearance-note">Resize workspace and terminal text independently of zoom. Database editors keep their own font settings.</p>
       <h3>Color palette</h3><div class="palette-grid" role="group" aria-label="Color palette">
         @for (palette of appearance.palettes; track palette.id) {
           <button class="palette-option" [attr.aria-label]="palette.name + ' palette'" [attr.aria-pressed]="appearance.preferences().palette === palette.id" (click)="appearance.choosePalette(palette.id)" [disabled]="appearance.loading()"><span class="palette-swatch" [style.background]="appearance.swatch(palette)">@if (appearance.preferences().palette === palette.id) { <b>✓</b> }</span><span>{{ palette.name }}</span></button>

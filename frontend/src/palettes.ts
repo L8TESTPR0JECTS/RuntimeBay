@@ -1,5 +1,8 @@
 export type AppearanceMode = 'light' | 'dark' | 'system';
-export interface Preferences { version: 1; palette: string; appearance: AppearanceMode; onboardingComplete: boolean }
+export interface Preferences { version: 1; palette: string; appearance: AppearanceMode; onboardingComplete: boolean; fontSize: number }
+export const DEFAULT_FONT_SIZE = 14;
+export function isFontSize(value: unknown): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= 12 && value <= 20; }
+export function fontScale(fontSize: number): number { return (isFontSize(fontSize) ? fontSize : DEFAULT_FONT_SIZE) / DEFAULT_FONT_SIZE; }
 export interface Palette { id: string; name: string; hue: number; saturation: number }
 export const PALETTES: readonly Palette[] = [
   { id: 'harbor', name: 'Harbor', hue: 167, saturation: 54 },
@@ -15,11 +18,11 @@ export const PALETTES: readonly Palette[] = [
   { id: 'violet', name: 'Violet', hue: 264, saturation: 58 },
   { id: 'graphite', name: 'Graphite', hue: 220, saturation: 8 }
 ];
-export const DEFAULT_PREFERENCES: Preferences = { version: 1, palette: 'harbor', appearance: 'system', onboardingComplete: false };
+export const DEFAULT_PREFERENCES: Preferences = { version: 1, palette: 'harbor', appearance: 'system', onboardingComplete: false, fontSize: DEFAULT_FONT_SIZE };
 export function isPreferences(value: unknown): value is Preferences {
   if (!value || typeof value !== 'object') return false;
   const p = value as Preferences;
-  return p.version === 1 && PALETTES.some(a => a.id === p.palette) && ['light', 'dark', 'system'].includes(p.appearance) && typeof p.onboardingComplete === 'boolean';
+  return p.version === 1 && PALETTES.some(a => a.id === p.palette) && ['light', 'dark', 'system'].includes(p.appearance) && typeof p.onboardingComplete === 'boolean' && isFontSize(p.fontSize);
 }
 export function themeTokens(palette: Palette, dark: boolean): Record<string, string> {
   const h = palette.hue, s = palette.saturation, tint = Math.min(s, 18);

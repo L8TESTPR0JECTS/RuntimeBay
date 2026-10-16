@@ -10,6 +10,7 @@
   --nav:hsl(167 30% 15%)
 }
 :root {
+  font-size:calc(16px * var(--font-scale, 1));
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   color:var(--ink);
   background:var(--paper);
@@ -65,13 +66,13 @@ a {
   display:flex;
   align-items:center;
   gap:11px;
-  font-size:18px;
+  font-size:calc(18px * var(--font-scale, 1));
   font-weight:650;
   letter-spacing:-.4px
 }
 .brand small {
   display:block;
-  font-size:7.8px;
+  font-size:calc(7.8px * var(--font-scale, 1));
   letter-spacing:1.5px;
   color:var(--muted);
   margin-top:6px;
@@ -98,25 +99,25 @@ a {
   padding:12px 10px;
   border:1px solid var(--ink);
   border-radius:7px;
-  font-size:11.5px;
+  font-size:calc(11.5px * var(--font-scale, 1));
   text-align:left
 }
 .import-shortcut:hover {
   background:var(--ink)
 }
 .import-shortcut>span {
-  font-size:17px;
+  font-size:calc(17px * var(--font-scale, 1));
   line-height:10px
 }
 .import-shortcut kbd {
   margin-left:auto;
   color:var(--muted);
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   font-family:inherit
 }
 .sidebar-label {
   margin-top:31px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   letter-spacing:1.6px;
   color:var(--muted);
   display:flex;
@@ -156,12 +157,12 @@ a {
   height:29px;
   border:1px solid var(--muted);
   border-radius:5px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   letter-spacing:.5px;
   flex-shrink:0
 }
 .project-link-text {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -169,16 +170,16 @@ a {
 }
 .project-link-text small {
   display:block;
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   color:var(--muted);
   margin-top:5px
 }
 .chevron {
-  font-size:18px;
+  font-size:calc(18px * var(--font-scale, 1));
   color:var(--muted)
 }
 .sidebar-empty {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--muted);
   line-height:1.6;
   padding:0 8px
@@ -189,7 +190,7 @@ a {
   border-top:1px solid var(--ink)
 }
 .engine-state {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   display:flex;
   gap:8px;
   align-items:center
@@ -207,7 +208,7 @@ a {
 }
 .sidebar-bottom>small {
   display:block;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:1.6px;
   color:var(--muted);
   margin:12px 0 0 14px
@@ -224,7 +225,7 @@ main {
   align-items:center;
   justify-content:space-between;
   background:var(--surface);
-  font-size:11px
+  font-size:calc(11px * var(--font-scale, 1))
 }
 .crumb {
   color:var(--muted)
@@ -237,7 +238,7 @@ main {
   font-weight:550
 }
 .local-pill {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:1.5px;
   display:flex;
   align-items:center;
@@ -266,25 +267,25 @@ main {
   gap:20px
 }
 .eyebrow {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   font-weight:600;
   letter-spacing:1.6px;
   color:var(--muted)
 }
 .page-title h1 {
-  font-size:32px;
+  font-size:calc(32px * var(--font-scale, 1));
   font-weight:550;
   letter-spacing:-1.1px;
   margin:10px 0 9px
 }
 .subtitle {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--muted);
   margin:0;
   overflow-wrap:anywhere
 }
 .title-symbol {
-  font-size:48px;
+  font-size:calc(48px * var(--font-scale, 1));
   color:var(--muted);
   margin-right:7px;
   line-height:1
@@ -302,20 +303,20 @@ main {
   border-right:1px solid var(--line)
 }
 .stat>span {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:1.2px;
   color:var(--muted);
   display:block
 }
 .stat strong {
   display:block;
-  font-size:33px;
+  font-size:calc(33px * var(--font-scale, 1));
   letter-spacing:-1.5px;
   font-weight:500;
   margin:9px 0 5px
 }
 .stat small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   display:flex;
   align-items:center;
@@ -338,19 +339,19 @@ main {
   border-radius:0 9px 9px 0
 }
 .note-icon {
-  font-size:30px;
+  font-size:calc(30px * var(--font-scale, 1));
   font-weight:300;
   color:var(--muted)
 }
 .workspace-note>div {
-  font-size:14px;
+  font-size:calc(14px * var(--font-scale, 1));
   line-height:1.6;
   color:var(--muted);
   letter-spacing:-.2px
 }
 .workspace-note small {
   display:block;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   margin-top:8px;
   color:var(--muted);
   letter-spacing:.1px
@@ -365,13 +366,13 @@ main {
   margin-bottom:17px
 }
 .section-heading h2,.inspector-heading h2 {
-  font-size:18px;
+  font-size:calc(18px * var(--font-scale, 1));
   letter-spacing:-.4px;
   font-weight:550;
   margin:0
 }
 .count {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   font-weight:500;
   background:var(--line);
   padding:4px 6px;
@@ -381,7 +382,7 @@ main {
   vertical-align:middle
 }
 .section-heading p {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   color:var(--muted);
   margin:7px 0 0
 }
@@ -393,7 +394,7 @@ main {
 .primary,.secondary,.danger {
   padding:10px 14px;
   border-radius:5px;
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   font-weight:550;
   white-space:nowrap
 }
@@ -418,7 +419,7 @@ main {
 }
 .text-button {
   background:none;
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   color:var(--muted);
   padding:8px 4px
 }
@@ -460,7 +461,7 @@ main {
   display:grid;
   place-items:center;
   color:var(--muted);
-  font-size:16px;
+  font-size:calc(16px * var(--font-scale, 1));
   background:var(--surface-soft)
 }
 .status {
@@ -470,7 +471,7 @@ main {
   background:var(--surface-soft);
   color:var(--muted);
   padding:4px 7px;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   text-transform:uppercase;
   letter-spacing:.6px;
   border-radius:4px
@@ -496,14 +497,14 @@ main {
   background:var(--danger-ink)
 }
 .service-card h3 {
-  font-size:15px;
+  font-size:calc(15px * var(--font-scale, 1));
   font-weight:550;
   letter-spacing:-.3px;
   margin:0 0 9px
 }
 .command {
   display:block;
-  font:9px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(9px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted);
   white-space:nowrap;
   text-overflow:ellipsis;
@@ -514,7 +515,7 @@ main {
   justify-content:space-between;
   align-items:center;
   gap:6px;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   color:var(--muted);
   margin-top:21px
 }
@@ -539,14 +540,14 @@ main {
 .inspect-button {
   background:none;
   padding:4px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted)
 }
 .inspect-button span {
   margin-left:5px
 }
 .start-button,.stop-button {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   padding:7px 10px;
   border-radius:4px;
   font-weight:500
@@ -563,7 +564,7 @@ main {
 }
 .icon-button {
   background:none;
-  font-size:17px;
+  font-size:calc(17px * var(--font-scale, 1));
   color:var(--muted);
   padding:3px 8px
 }
@@ -575,10 +576,10 @@ main {
 }
 .inspector-heading h2 {
   margin-top:7px;
-  font-size:17px
+  font-size:calc(17px * var(--font-scale, 1))
 }
 .inspector-state {
-  font:8px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(8px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   letter-spacing:.3px;
   color:var(--muted);
   margin-left:8px
@@ -588,7 +589,7 @@ main {
   align-items:center;
   flex-wrap:wrap;
   gap:10px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   margin-bottom:12px
 }
@@ -596,7 +597,7 @@ main {
   color:var(--muted)
 }
 .port-inspector strong {
-  font:10px ui-monospace,SFMono-Regular,Menlo,monospace
+  font:calc(10px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace
 }
 .port-owner {
   padding:4px 7px;
@@ -604,7 +605,7 @@ main {
   border-radius:4px
 }
 .port-owner b {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   font-weight:500;
   background:var(--surface-soft);
   padding:2px 4px;
@@ -632,7 +633,7 @@ main {
   display:flex;
   align-items:center;
   gap:12px;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:1px;
   color:var(--muted)
 }
@@ -654,7 +655,7 @@ main {
   background:var(--muted)
 }
 .log-count {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:0;
   color:var(--muted)
 }
@@ -669,7 +670,7 @@ main {
   border:1px solid var(--muted);
   border-radius:4px;
   background:var(--nav);
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--line);
   outline-offset:1px
 }
@@ -677,7 +678,7 @@ main {
   color:var(--muted)
 }
 .terminal-actions button {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   border:1px solid var(--muted);
   background:none;
   color:var(--muted);
@@ -698,7 +699,7 @@ main {
 .log-line {
   display:flex;
   gap:10px;
-  font:9px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(9px * var(--font-scale, 1))/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
   min-height:17px;
   align-items:flex-start
 }
@@ -708,7 +709,7 @@ main {
 }
 .stream-label {
   color:var(--muted);
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   flex-shrink:0;
   min-width:23px
 }
@@ -734,37 +735,37 @@ main {
   align-items:center;
   height:100%;
   gap:10px;
-  font:11px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(11px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted)
 }
 .terminal-empty small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted)
 }
 .inspector-foot {
   display:flex;
   justify-content:space-between;
   margin-top:10px;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   color:var(--muted);
   gap:10px
 }
 .inspector-foot code {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   margin-left:5px;
   color:var(--muted)
 }
 footer {
   display:flex;
   justify-content:space-between;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   margin-top:32px;
   padding-top:16px;
   border-top:1px solid var(--line)
 }
 footer span {
-  font-size:7px;
+  font-size:calc(7px * var(--font-scale, 1));
   letter-spacing:2px
 }
 .welcome {
@@ -781,7 +782,7 @@ footer span {
   position:relative
 }
 .welcome-art>span {
-  font-size:42px;
+  font-size:calc(42px * var(--font-scale, 1));
   color:var(--muted);
   width:75px;
   height:75px;
@@ -812,20 +813,20 @@ footer span {
   border-width:3px
 }
 .welcome h2 {
-  font-size:25px;
+  font-size:calc(25px * var(--font-scale, 1));
   font-weight:500;
   letter-spacing:-.7px;
   margin:12px 0
 }
 .welcome p {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   line-height:1.9;
   color:var(--muted);
   margin:10px 0 23px
 }
 .welcome>small {
   display:block;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   margin-top:13px
 }
@@ -836,16 +837,16 @@ footer span {
   text-align:center
 }
 .empty-services>span {
-  font-size:27px;
+  font-size:calc(27px * var(--font-scale, 1));
   color:var(--muted)
 }
 .empty-services h3 {
-  font-size:16px;
+  font-size:calc(16px * var(--font-scale, 1));
   font-weight:500;
   margin:10px 0
 }
 .empty-services p {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--muted);
   margin-bottom:20px
 }
@@ -854,7 +855,7 @@ footer span {
   padding:60px
 }
 .empty-state h2 {
-  font-size:15px;
+  font-size:calc(15px * var(--font-scale, 1));
   font-weight:400;
   color:var(--muted)
 }
@@ -864,7 +865,7 @@ footer span {
   border-radius:6px;
   background:var(--warning-bg);
   color:var(--warning-ink);
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   margin-bottom:18px;
   display:flex;
   align-items:center;
@@ -873,7 +874,7 @@ footer span {
 }
 .notice button {
   background:none;
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   color:var(--warning-ink)
 }
 .modal-backdrop {
@@ -906,20 +907,20 @@ footer span {
   padding-right:0
 }
 .modal h2 {
-  font-size:28px;
+  font-size:calc(28px * var(--font-scale, 1));
   letter-spacing:-.9px;
   font-weight:500;
   margin:15px 0 9px
 }
 .modal>p {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   line-height:1.8;
   color:var(--muted);
   margin:0 0 25px
 }
 .modal label {
   display:block;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   letter-spacing:1px;
   font-weight:500;
@@ -934,19 +935,19 @@ footer span {
   border-radius:5px;
   padding:11px 12px;
   color:var(--ink);
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   letter-spacing:0;
   font-weight:400
 }
 .modal label textarea {
-  font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(12px * var(--font-scale, 1))/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
   resize:vertical
 }
 .modal label input::placeholder,.modal label textarea::placeholder {
   color:var(--muted)
 }
 .modal label small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   letter-spacing:0;
   font-weight:400;
   color:var(--muted);
@@ -955,7 +956,7 @@ footer span {
   line-height:1.6
 }
 .modal label em {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   color:var(--muted);
   font-weight:400;
   letter-spacing:0;
@@ -987,13 +988,13 @@ footer span {
   margin-top:26px
 }
 .modal-footer small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   line-height:1.6;
   color:var(--muted);
   max-width:230px
 }
 .form-error {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--danger-ink);
   background:var(--danger-bg);
   border-radius:5px;
@@ -1035,13 +1036,13 @@ footer span {
     padding:15px
   }
   .workspace-note>div {
-    font-size:12px
+    font-size:calc(12px * var(--font-scale, 1))
   }
   .workspace-note small {
-    font-size:7px
+    font-size:calc(7px * var(--font-scale, 1))
   }
   .page-title h1 {
-    font-size:29px
+    font-size:calc(29px * var(--font-scale, 1))
   }
   .stat {
     padding:18px 15px
@@ -1167,7 +1168,7 @@ input,textarea,select {
   gap:7px;
   background:none;
   color:var(--nav-text);
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   padding:7px 0;
   margin-bottom:16px;
   width:100%;
@@ -1176,7 +1177,7 @@ input,textarea,select {
 .customize-button span {
   margin-left:auto;
   color:var(--nav-muted);
-  font-size:9px
+  font-size:calc(9px * var(--font-scale, 1))
 }
 .appearance-backdrop {
   position:fixed;
@@ -1206,7 +1207,7 @@ input,textarea,select {
   gap:8px
 }
 .drawer-heading h2 {
-  font-size:22px;
+  font-size:calc(22px * var(--font-scale, 1));
   letter-spacing:-.6px;
   font-weight:550;
   margin:10px 0 22px
@@ -1256,10 +1257,10 @@ input,textarea,select {
 }
 .preview-main>strong {
   display:block;
-  font-size:14px
+  font-size:calc(14px * var(--font-scale, 1))
 }
 .preview-main>span {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   color:var(--muted)
 }
 .preview-cards {
@@ -1279,12 +1280,12 @@ input,textarea,select {
   margin-top:10px;
   background:var(--terminal);
   color:var(--terminal-text);
-  font:8px ui-monospace,monospace;
+  font:calc(8px * var(--font-scale, 1)) ui-monospace,monospace;
   padding:10px;
   border-radius:4px
 }
 .appearance-drawer h3 {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   margin:13px 0 11px;
   font-weight:600
 }
@@ -1298,7 +1299,7 @@ input,textarea,select {
 .mode-options button {
   flex:1;
   background:none;
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   padding:9px 0;
   border-radius:24px;
   color:var(--muted)
@@ -1308,7 +1309,7 @@ input,textarea,select {
   color:var(--on-accent)
 }
 .appearance-note {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   line-height:1.5;
   color:var(--muted);
   margin:9px 0 6px
@@ -1324,7 +1325,7 @@ input,textarea,select {
   border:1px solid transparent;
   padding:9px 4px 8px;
   border-radius:8px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -1356,7 +1357,7 @@ input,textarea,select {
   height:20px;
   display:grid;
   place-items:center;
-  font-size:10px
+  font-size:calc(10px * var(--font-scale, 1))
 }
 .drawer-footer {
   display:flex;
@@ -1368,7 +1369,7 @@ input,textarea,select {
   border-top:1px solid var(--line)
 }
 .drawer-footer>span {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted)
 }
 .terminal-dots i {
@@ -1380,3 +1381,14 @@ input,textarea,select {
 .terminal-dots i:nth-child(3) {
   background:hsl(145 30% 61%)
 }
+
+/* Text sizing deliberately leaves layout widths, spacing, icons, and zoom untouched. */
+.font-size-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.font-size-heading output{font-size:calc(12px * var(--font-scale, 1));font-variant-numeric:tabular-nums;color:var(--muted)}
+.font-size-controls{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.font-size-controls input{flex:1;min-width:0;accent-color:var(--accent)}
+.font-size-controls>span:first-child{font-size:12px}
+.font-size-controls>span:last-of-type{font-size:20px}
+.font-size-controls button{background:var(--surface-soft);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:calc(11px * var(--font-scale, 1))}
+.appearance-drawer>*{flex-shrink:0}
+.sidebar nav button,.shell-tab-select>span:last-child{min-width:0;overflow-wrap:anywhere}

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 const source = readFileSync(new URL('../src/palettes.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-const { PALETTES, themeTokens, isPreferences, DEFAULT_PREFERENCES } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const { PALETTES, themeTokens, isPreferences, DEFAULT_PREFERENCES, fontScale } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
 function luminance(css) {
   const [, hue, saturation, lightness] = css.match(/hsl\(([\d.]+) ([\d.]+)% ([\d.]+)%\)/);
   const h = Number(hue) / 60, s = Number(saturation) / 100, l = Number(lightness) / 100;
@@ -27,4 +27,14 @@ test('appearance preferences reject unsupported or malformed selections', () => 
   assert.ok(isPreferences(DEFAULT_PREFERENCES));
   for(const update of [{palette:'unknown'},{appearance:'auto'},{version:2},{onboardingComplete:'true'}]) assert.equal(isPreferences({...DEFAULT_PREFERENCES,...update}),false);
   assert.equal(isPreferences(null),false);
+});
+test('font sizes are bounded whole numbers and text scale is independent of page zoom', () => {
+  for (const fontSize of [12, 14, 18, 20]) assert.ok(isPreferences({ ...DEFAULT_PREFERENCES, fontSize }));
+  for (const fontSize of [11, 21, 14.5, null, '18', Infinity, NaN, undefined]) {
+    assert.equal(isPreferences({ ...DEFAULT_PREFERENCES, fontSize }), false);
+  }
+  assert.equal(fontScale(14), 1);
+  assert.equal(fontScale(20), 20 / 14);
+  assert.equal(fontScale(12), 12 / 14);
+  assert.equal(fontScale(NaN), 1);
 });

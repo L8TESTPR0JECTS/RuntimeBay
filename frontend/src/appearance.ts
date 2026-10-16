@@ -1,11 +1,12 @@
 import { signal } from '@angular/core';
 import { LoadingScope } from './loading/loading-tasks';
 import { LoadingService } from './loading/loading.service';
-import { DEFAULT_PREFERENCES, isPreferences, Preferences, AppearanceMode, PALETTES, themeTokens, swatch } from './palettes';
+import { DEFAULT_PREFERENCES, DEFAULT_FONT_SIZE, isFontSize, fontScale, isPreferences, Preferences, AppearanceMode, PALETTES, themeTokens, swatch } from './palettes';
 
 export class Appearance {
   readonly palettes = PALETTES;
   readonly swatch = swatch;
+  readonly defaultFontSize = DEFAULT_FONT_SIZE;
   preferences = signal<Preferences>({ ...DEFAULT_PREFERENCES });
   open = signal(false);
   loading = signal(true);
@@ -24,7 +25,7 @@ export class Appearance {
     if (!this.open()) return;
     if (event.key === 'Escape') { event.preventDefault(); this.close(); }
     if (event.key === 'Tab') {
-      const controls = Array.from(document.querySelectorAll<HTMLElement>('.appearance-drawer button:not([disabled])'));
+      const controls = Array.from(document.querySelectorAll<HTMLElement>('.appearance-drawer button:not([disabled]), .appearance-drawer input:not([disabled])'));
       if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
       else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
     }
@@ -73,6 +74,7 @@ export class Appearance {
   }
   choosePalette(palette: string) { if (PALETTES.some(p => p.id === palette)) this.change({ palette }); }
   chooseMode(appearance: AppearanceMode) { this.change({ appearance }); }
+  chooseFontSize(value: number) { if (isFontSize(value)) this.change({ fontSize: value }); }
   private change(update: Partial<Preferences>) {
     if (this.loading()) return;
     const next = { ...this.preferences(), ...update };
@@ -96,6 +98,7 @@ export class Appearance {
     const root = document.documentElement;
     root.dataset['appearance'] = dark ? 'dark' : 'light'; root.dataset['palette'] = preferences.palette;
     root.style.colorScheme = dark ? 'dark' : 'light';
+    root.style.setProperty('--font-scale', String(fontScale(preferences.fontSize)));
     const palette = PALETTES.find(p => p.id === preferences.palette) || PALETTES[0];
     for (const [name, value] of Object.entries(themeTokens(palette, dark))) root.style.setProperty(name, value);
     window.webkit?.messageHandlers.runtimeBay.postMessage({ action: 'appearance', mode: preferences.appearance });

@@ -9,10 +9,10 @@
   margin-top:19px;
   padding:12px 10px;
   border-radius:6px;
-  font-size:12px
+  font-size:calc(12px * var(--font-scale, 1))
 }
 .containers-nav>span:first-child {
-  font-size:18px;
+  font-size:calc(18px * var(--font-scale, 1));
   color:var(--muted)
 }
 .containers-nav>span:last-child {
@@ -41,7 +41,7 @@ app-containers {
   max-width:390px
 }
 .host-select label {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   letter-spacing:1.4px;
   color:var(--muted);
   display:block;
@@ -54,23 +54,23 @@ app-containers {
   background:var(--surface);
   color:var(--ink);
   padding:11px 12px;
-  font-size:12px
+  font-size:calc(12px * var(--font-scale, 1))
 }
 .host-address {
   display:flex;
   align-items:center;
   gap:9px;
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   margin-bottom:26px;
   flex-wrap:wrap
 }
 .host-address code {
-  font:10px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(10px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   overflow-wrap:anywhere
 }
 .host-kind {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:.8px;
   border:1px solid var(--line);
   background:var(--surface-soft);
@@ -84,7 +84,7 @@ app-containers {
   color:var(--warning-ink)
 }
 .unsupported-host {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--warning-ink);
   line-height:1.7;
   margin:12px 0;
@@ -103,12 +103,12 @@ app-containers {
   overflow:hidden
 }
 .engine-note>div {
-  font-size:13px;
+  font-size:calc(13px * var(--font-scale, 1));
   overflow-wrap:anywhere
 }
 .engine-note small {
   line-height:1.8;
-  font-size:9px
+  font-size:calc(9px * var(--font-scale, 1))
 }
 .docker-tabs {
   display:flex;
@@ -123,7 +123,7 @@ app-containers {
 }
 .docker-tabs [role=tab] {
   background:none;
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   padding:12px 1px;
   color:var(--muted);
   border-bottom:2px solid transparent;
@@ -139,7 +139,7 @@ app-containers {
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:5px;
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   width:170px
 }
 .container-list {
@@ -175,28 +175,28 @@ app-containers {
   flex-wrap:wrap
 }
 .container-summary strong {
-  font-size:13px;
+  font-size:calc(13px * var(--font-scale, 1));
   font-weight:550;
   overflow-wrap:anywhere
 }
 .container-summary .status {
-  font-size:7px
+  font-size:calc(7px * var(--font-scale, 1))
 }
 .container-summary>code {
-  font:10px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(10px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted);
   display:block;
   margin-top:9px;
   overflow-wrap:anywhere
 }
 .container-summary>small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   display:block;
   margin-top:6px
 }
 .container-summary>small.container-ports {
-  font:9px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(9px * var(--font-scale, 1))/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted)
 }
 .container-groups {
@@ -205,7 +205,7 @@ app-containers {
   flex-wrap:wrap
 }
 .container-groups b {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   font-weight:400;
   color:var(--muted);
   background:var(--surface-soft);
@@ -221,7 +221,7 @@ app-containers {
 }
 .container-controls .secondary {
   padding:7px 9px;
-  font-size:9px
+  font-size:calc(9px * var(--font-scale, 1))
 }
 .docker-inspector {
   margin-top:29px
@@ -244,13 +244,13 @@ app-containers {
 }
 .container-metrics span {
   display:block;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:.8px;
   color:var(--muted);
   margin-bottom:8px
 }
 .container-metrics strong {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   font-weight:500;
   color:var(--muted);
   overflow-wrap:anywhere
@@ -261,16 +261,16 @@ app-containers {
   gap:18px;
   margin:14px 0;
   color:var(--muted);
-  font-size:10px
+  font-size:calc(10px * var(--font-scale, 1))
 }
 .container-config strong {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   font-weight:500;
   color:var(--muted);
   margin-left:5px
 }
 .docker-log {
-  font:11px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(11px * var(--font-scale, 1))/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--line);
   white-space:pre-wrap;
   overflow-wrap:anywhere;
@@ -281,7 +281,7 @@ app-containers {
   scrollbar-color:var(--muted) var(--nav)
 }
 .resource-note {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   line-height:1.8;
   color:var(--muted);
   margin:14px 0;
@@ -299,7 +299,7 @@ app-containers {
   text-align:left
 }
 .resource-table th {
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   font-weight:500;
   letter-spacing:1px;
   color:var(--muted);
@@ -308,7 +308,7 @@ app-containers {
   background:var(--surface-soft)
 }
 .resource-table td {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   color:var(--muted);
   padding:13px 14px;
   border-bottom:1px solid var(--line);
@@ -318,20 +318,20 @@ app-containers {
   border-bottom:0
 }
 .resource-table td strong {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   font-weight:500;
   color:var(--muted);
   display:block;
   overflow-wrap:anywhere
 }
 .resource-table td code {
-  font:9px ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(9px * var(--font-scale, 1)) ui-monospace,SFMono-Regular,Menlo,monospace;
   display:block;
   margin-top:5px;
   color:var(--muted)
 }
 .resource-table td small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--muted);
   display:block;
   margin-top:6px
@@ -364,14 +364,14 @@ app-containers {
   flex-basis:100%
 }
 .pull-operation strong {
-  font-size:12px;
+  font-size:calc(12px * var(--font-scale, 1));
   font-weight:500;
   color:var(--muted);
   overflow-wrap:anywhere
 }
 .pull-state {
   padding:3px 6px;
-  font-size:8px;
+  font-size:calc(8px * var(--font-scale, 1));
   letter-spacing:.6px;
   text-transform:uppercase;
   color:var(--muted);
@@ -386,7 +386,7 @@ app-containers {
   flex-basis:100%
 }
 .pull-operation summary {
-  font-size:10px;
+  font-size:calc(10px * var(--font-scale, 1));
   cursor:pointer;
   color:var(--muted)
 }
@@ -395,7 +395,7 @@ app-containers {
   overflow:auto;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
-  font:10px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(10px * var(--font-scale, 1))/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted);
   margin-bottom:0
 }
@@ -407,7 +407,7 @@ app-containers {
   background:var(--surface);
   border-radius:5px;
   padding:11px 8px;
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--ink)
 }
 .dock-modal label.checkbox-label {
@@ -415,7 +415,7 @@ app-containers {
   align-items:center;
   gap:8px;
   letter-spacing:0;
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--muted);
   font-weight:400
 }
@@ -428,7 +428,7 @@ app-containers {
   margin-top:20px
 }
 .advanced-container summary {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   cursor:pointer;
   color:var(--muted)
 }
@@ -437,7 +437,7 @@ app-containers {
   margin-top:15px;
   background:var(--surface-soft);
   border-radius:5px;
-  font:10px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;
+  font:calc(10px * var(--font-scale, 1))/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;
   color:var(--muted);
   overflow-wrap:anywhere
 }
@@ -448,7 +448,7 @@ app-containers {
   color:var(--terminal-muted)
 }
 .container-controls .text-button {
-  font-size:9px
+  font-size:calc(9px * var(--font-scale, 1))
 }
 @media(max-width:1100px) {
   .container-row {
@@ -459,10 +459,10 @@ app-containers {
     margin-left:auto
   }
   .host-address {
-    font-size:8px
+    font-size:calc(8px * var(--font-scale, 1))
   }
   .host-address code {
-    font-size:9px
+    font-size:calc(9px * var(--font-scale, 1))
   }
   .resource-filter {
     width:145px
@@ -532,22 +532,22 @@ app-containers {
   gap:12px
 }
 .host-card-heading>small {
-  font-size:9px;
+  font-size:calc(9px * var(--font-scale, 1));
   color:var(--accent)
 }
 .host-card h3 {
-  font-size:18px;
+  font-size:calc(18px * var(--font-scale, 1));
   font-weight:550;
   margin:19px 0 10px;
   overflow-wrap:anywhere
 }
 .host-card code {
-  font:10px/1.8 ui-monospace,monospace;
+  font:calc(10px * var(--font-scale, 1))/1.8 ui-monospace,monospace;
   color:var(--muted);
   overflow-wrap:anywhere
 }
 .host-card>p {
-  font-size:11px;
+  font-size:calc(11px * var(--font-scale, 1));
   color:var(--muted);
   line-height:1.7;
   margin-bottom:20px

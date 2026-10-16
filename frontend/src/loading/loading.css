@@ -36,7 +36,7 @@
   pointer-events: none;
   will-change: transform, opacity;
 }
-.loading-overlay__message { margin: 0; max-width: 420px; font: 500 13px/1.7 -apple-system, BlinkMacSystemFont, sans-serif; text-align: center; overflow-wrap: anywhere; }
+.loading-overlay__message { margin: 0; max-width: 420px; font: 500 calc(13px * var(--font-scale, 1))/1.7 -apple-system, BlinkMacSystemFont, sans-serif; text-align: center; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   .loading-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
   .loading-overlay__logo, .loading-overlay__halo { will-change: auto; }

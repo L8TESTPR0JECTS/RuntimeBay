@@ -72,6 +72,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
   private destroyed = false;
   private mounting = new Set<string>();
   private focusId: string | null = null;
+  private resizeListener = () => this.fit();
   selectedTab() { return this.workspace().tabs().find(tab => tab.id === this.workspace().selected()); }
   constructor() {
     effect(() => {
@@ -98,14 +99,26 @@ export class Terminals implements AfterViewInit, OnDestroy {
     });
   }
   ngAfterViewInit() {
+    window.addEventListener('resize', this.resizeListener);
     this.observer = new ResizeObserver(() => this.fit()); this.observer.observe(this.surfaces.nativeElement);
-    this.themeObserver = new MutationObserver(() => { for (const renderer of this.renderers.values()) renderer.terminal.options.theme = this.theme(); });
+    this.themeObserver = new MutationObserver(() => {
+      for (const renderer of this.renderers.values()) {
+        renderer.terminal.options.theme = this.theme();
+        const fontSize = this.fontSize();
+        if (renderer.terminal.options.fontSize !== fontSize) { renderer.terminal.options.fontSize = fontSize; }
+      }
+      this.fit();
+    });
     this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-appearance', 'data-palette'] });
     this.ready.set(true);
   }
   private theme() {
     const style = getComputedStyle(document.documentElement);
     return { background: style.getPropertyValue('--terminal').trim() || '#141d21', foreground: '#e0e6e8', cursor: '#8fe3c2', selectionBackground: '#50657599', black: '#243139', red: '#ff8e91', green: '#8fe3aa', yellow: '#eed28a', blue: '#8bbcff', magenta: '#dca2f3', cyan: '#80d9e4', white: '#e0e6e8', brightBlack: '#91a2ad', brightRed: '#ffb2b4', brightGreen: '#b1f0c2', brightYellow: '#ffe6a7', brightBlue: '#b4d5ff', brightMagenta: '#edc4ff', brightCyan: '#b4f4fc', brightWhite: '#ffffff' };
+  }
+  private fontSize() {
+    const scale = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1;
+    return 13 * scale;
   }
   private async mount(tab: ShellTab) {
     this.mounting.add(tab.id);
@@ -116,15 +129,15 @@ export class Terminals implements AfterViewInit, OnDestroy {
     } finally { this.mounting.delete(tab.id); }
     if (this.destroyed || !this.workspace().tabs().some(value => value.id === tab.id)) return;
     const element = document.createElement('div'); element.className = 'shell-surface'; this.surfaces.nativeElement.append(element);
-    const terminal = new TerminalClass({ cursorBlink: true, fontFamily: 'Menlo, Monaco, monospace', fontSize: 13, lineHeight: 1.35, scrollback: 10000, theme: this.theme(), screenReaderMode: true });
+    const terminal = new TerminalClass({ cursorBlink: true, fontFamily: 'Menlo, Monaco, monospace', fontSize: this.fontSize(), lineHeight: 1.35, scrollback: 10000, theme: this.theme(), screenReaderMode: true });
     const fit = new FitClass(); terminal.loadAddon(fit); terminal.open(element);
     terminal.textarea?.setAttribute('aria-label', 'Terminal input · ' + tab.name);
     const renderer: Renderer = { terminal, fit, element, abort: new AbortController(), next: 0, input: Promise.resolve(), queued: 0, exited: false };
     this.renderers.set(tab.id, renderer);
     terminal.attachCustomKeyEventHandler(event => {
       // Keep macOS copy/paste/select-all in the web view; Ctrl shortcuts belong to the shell.
-      if (event.metaKey && event.key.toLowerCase() === 'a') { terminal.selectAll(); event.preventDefault(); return false; }
-      if (event.metaKey && ['c', 'v', 'k', ',', 't'].includes(event.key.toLowerCase())) return false;
+      if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a') { terminal.selectAll(); event.preventDefault(); return false; }
+      if (event.metaKey) return false;
       return true;
     });
     terminal.onData(data => {
@@ -169,6 +182,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
   }
   private fit() { if (this.visible()) this.renderers.get(this.workspace().selected() || '')?.fit.fit(); }
   ngOnDestroy() {
+    window.removeEventListener('resize', this.resizeListener);
     this.destroyed = true; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.themeObserver?.disconnect();
     for (const renderer of this.renderers.values()) { renderer.abort.abort(); renderer.terminal.dispose(); }
   }

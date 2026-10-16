@@ -2,12 +2,13 @@ import AppKit
 import WebKit
 import Security
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScriptMessageHandler, NSMenuItemValidation {
     var window: NSWindow!
     var webView: WKWebView!
     var backend: Process?
     var origin: String?
     var quitting = false
+    var zoomPercent = WorkspaceZoom.normalized(UserDefaults.standard.integer(forKey: WorkspaceZoom.preferenceKey))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -25,7 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "runtimeBay")
         config.userContentController.addUserScript(WKUserScript(source: "window.runtimeBayNative = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        webView = WKWebView(frame: window.contentView!.bounds, configuration: config)
+        let workspaceView = WorkspaceWebView(frame: window.contentView!.bounds, configuration: config)
+        workspaceView.zoomCommand = { [weak self] direction in self?.changeZoom(direction) }
+        webView = workspaceView
+        webView.pageZoom = Double(zoomPercent) / 100
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
         window.contentView = webView
@@ -57,12 +61,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         settings.target = self
         appMenu.addItem(settings)
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide Runtime Bay", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit Runtime Bay", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.submenu = appMenu
         main.addItem(item)
+        let file = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(commandItem("Import Workflow…", #selector(importWorkflow), "o"))
+        fileMenu.addItem(commandItem("New Terminal", #selector(newTerminal), "t"))
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        file.submenu = fileMenu
+        main.addItem(file)
         let edit = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
@@ -74,10 +94,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let reload = NSMenuItem(title: "Reload Workspace", action: #selector(reloadWorkspace), keyEquivalent: "r")
         reload.target = self
         viewMenu.addItem(reload)
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(commandItem("Zoom In", #selector(zoomIn), "+"))
+        viewMenu.addItem(commandItem("Zoom Out", #selector(zoomOut), "-"))
+        viewMenu.addItem(commandItem("Actual Size", #selector(resetZoom), "0"))
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(commandItem("Previous Terminal", #selector(previousTerminal), "[", [.command, .shift]))
+        viewMenu.addItem(commandItem("Next Terminal", #selector(nextTerminal), "]", [.command, .shift]))
+        viewMenu.addItem(.separator())
+        let fullScreen = viewMenu.addItem(withTitle: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        fullScreen.keyEquivalentModifierMask = [.command, .control]
         view.submenu = viewMenu
         main.addItem(view)
+        let windowItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+        NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = main
     }
+    func commandItem(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        item.keyEquivalentModifierMask = modifiers
+        return item
+    }
+    func changeZoom(_ direction: Int) {
+        zoomPercent = direction == 0 ? 100 : WorkspaceZoom.next(zoomPercent, direction: direction)
+        webView?.pageZoom = Double(zoomPercent) / 100
+        UserDefaults.standard.set(zoomPercent, forKey: WorkspaceZoom.preferenceKey)
+        // xterm renders into a canvas: explicitly refit it when page zoom changes.
+        webView?.evaluateJavaScript("window.dispatchEvent(new Event('resize'))")
+    }
+    @objc func zoomIn() { changeZoom(1) }
+    @objc func zoomOut() { changeZoom(-1) }
+    @objc func resetZoom() { changeZoom(0) }
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(zoomIn) { return zoomPercent < WorkspaceZoom.range.upperBound }
+        if menuItem.action == #selector(zoomOut) { return zoomPercent > WorkspaceZoom.range.lowerBound }
+        if menuItem.action == #selector(resetZoom) { return zoomPercent != 100 }
+        return webView != nil
+    }
+    func workspaceCommand(_ command: String) {
+        webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('runtimebay:command', {detail: '\(command)'}))")
+    }
+    @objc func importWorkflow() { workspaceCommand("import-workflow") }
+    @objc func newTerminal() { workspaceCommand("new-terminal") }
+    @objc func previousTerminal() { workspaceCommand("previous-terminal") }
+    @objc func nextTerminal() { workspaceCommand("next-terminal") }
     @objc func reloadWorkspace() {
         webView?.evaluateJavaScript("Boolean(document.querySelector('.loading-overlay'))") { result, _ in
             if result as? Bool != true { self.webView?.reload() }
@@ -203,7 +271,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         return .terminateLater
     }
 }
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+@main
+struct RuntimeBay {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

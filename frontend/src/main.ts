@@ -9,6 +9,7 @@ import { Databases } from './databases';
 import { Containers } from './containers';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
+import { adjacentTerminal, workspaceShortcut, WorkspaceCommand } from './shortcuts';
 
 const session = window.runtimeBaySession || new URLSearchParams(location.hash.slice(1)).get('session') || '';
 if (location.hash) history.replaceState(null, '', location.pathname);
@@ -72,12 +73,20 @@ class App implements OnDestroy {
     }
     if (event.key === 'Escape' && !this.saving()) this.sheet.set(null);
     if (this.appearance.open() || this.sheet() || document.querySelector('.workflow-container-modal')) return;
-    if (event.metaKey && event.key.toLowerCase() === 't') { event.preventDefault(); void this.newTerminal(); }
-    if ((event.metaKey || event.ctrlKey) && event.key === ',') { event.preventDefault(); this.appearance.show(); }
-    if ((event.metaKey || (event.ctrlKey && this.view() !== 'terminal')) && event.key.toLowerCase() === 'k') {
-      event.preventDefault(); this.openProject();
-    }
+    const command = workspaceShortcut(event);
+    if (command) { event.preventDefault(); this.runCommand(command); }
+    if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key === ',' && !event.defaultPrevented) { event.preventDefault(); this.appearance.show(); }
   };
+  private commandListener = (event: Event) => this.runCommand((event as CustomEvent<WorkspaceCommand>).detail);
+  private runCommand(command: WorkspaceCommand) {
+    if (this.loader.active || this.appearance.open() || this.sheet() || document.querySelector('.workflow-container-modal, [role="dialog"]')) return;
+    if (command === 'new-terminal') void this.newTerminal();
+    else if (command === 'import-workflow') this.openProject();
+    else if (command === 'previous-terminal' || command === 'next-terminal') {
+      const id = adjacentTerminal(this.terminals.tabs().map(tab => tab.id), this.terminals.selected(), command === 'previous-terminal' ? -1 : 1);
+      if (id) this.selectTerminal(id);
+    }
+  }
   constructor() {
     effect(() => {
       if (this.sheet()) {
@@ -87,6 +96,7 @@ class App implements OnDestroy {
     });
     window.addEventListener('runtimebay:folder', this.folderListener);
     window.addEventListener('keydown', this.keyListener);
+    window.addEventListener('runtimebay:command', this.commandListener);
     void this.loadingTasks.run('Opening your workspace…', () => this.refresh());
     this.timer = setInterval(() => void this.refresh(), 1500);
   }
@@ -94,6 +104,7 @@ class App implements OnDestroy {
     this.terminals.destroy(); this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
     window.removeEventListener('runtimebay:folder', this.folderListener);
     window.removeEventListener('keydown', this.keyListener);
+    window.removeEventListener('runtimebay:command', this.commandListener);
   }
   private async api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     const response = await fetch('/api' + path, {

@@ -108,6 +108,11 @@ class ApiServerTest {
             .PUT(HttpRequest.BodyPublishers.ofString(valid.replace("violet", "unsupported")))));
         var response = client.send(request("/api/preferences").header("Authorization", "Bearer " + token).build(), HttpResponse.BodyHandlers.ofString());
         assertTrue(response.body().contains("violet"));
+        var larger = JsonParser.parseString(valid).getAsJsonObject(); larger.addProperty("fontSize", 18);
+        var updated = client.send(request("/api/preferences").header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(larger.toString())).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updated.statusCode());
+        assertEquals(18, JsonParser.parseString(updated.body()).getAsJsonObject().get("fontSize").getAsInt());
     }
 
 }

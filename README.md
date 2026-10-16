@@ -47,6 +47,10 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 
 The first-use appearance picker offers Harbor, Ocean, Glacier, Forest, Sage, Amber, Copper, Clay, Rose, Plum, Violet, and Graphite. Reopen it through **Customize appearance** or **⌘,**. Palettes recolor the workspace, sidebar, surfaces, controls, and log viewer; status colors continue to communicate state.
 
+The same picker includes a **Font size** slider (12–20 px, default 14 px). It resizes workspace and terminal text while retaining layout dimensions, saves across launches, and works independently of page zoom.
+
+Standard Mac shortcuts are available in the menu bar: **⌘+ / ⌘−** zoom, **⌘0** resets zoom, **⌘T** opens a terminal, **⇧⌘[ / ⇧⌘]** switches terminals, and **⌘O** imports a workflow. Zoom is remembered across launches. See the [keyboard shortcut guide](docs/shortcuts.md) for editing, window controls, and shortcut behavior.
+
 ## The operating loop
 
 ```text
