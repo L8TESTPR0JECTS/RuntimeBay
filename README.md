@@ -2,7 +2,7 @@
 
 # Runtime Bay
 
-<img src="frontend/src/assets/runtime-bay.png" alt="Runtime Bay logo" width="160">
+<img src="docs/assets/runtime-bay-sage.svg" alt="Runtime Bay logo in Sage" width="160">
 
 ### A home for everything running.
 
