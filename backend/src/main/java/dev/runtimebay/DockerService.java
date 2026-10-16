@@ -24,6 +24,7 @@ final class DockerService implements AutoCloseable {
     private final LinkedHashMap<String, Pull> pulls = new LinkedHashMap<>();
     private final ReentrantLock[] locks = new ReentrantLock[32];
     private final ReentrantReadWriteLock[] contextLocks = new ReentrantReadWriteLock[32];
+    private final Object defaultContextLock = new Object();
     private volatile boolean closing;
     private static final class Pull {
         final String id = UUID.randomUUID().toString();
@@ -56,8 +57,55 @@ final class DockerService implements AutoCloseable {
                 boolean current = rows.stream().anyMatch(r -> text(r, "Name").equals(name) && bool(r, "Current"));
                 result.add(environment(object, current));
             }
-            return new Discovery(true, result, null);
+            return new Discovery(true, collapseLocalAliases(result), null);
         } catch (ApiException | JsonParseException | IllegalStateException e) { return new Discovery(true, List.of(), e.getMessage()); }
+    }
+    /** Group only proven socket aliases; distinct local engines remain selectable. */
+    static List<Environment> collapseLocalAliases(List<Environment> environments) {
+        var groups = new LinkedHashMap<String, List<Environment>>();
+        for (Environment env : environments) {
+            String identity = "context:" + env.name();
+            if (env.transport().equals("local")) {
+                try { identity = "socket:" + localSocketPath(env.endpoint()); }
+                catch (IOException | IllegalArgumentException e) { identity = "socket-address:" + env.endpoint(); }
+            }
+            groups.computeIfAbsent(identity, key -> new ArrayList<>()).add(env);
+        }
+        var result = new ArrayList<Environment>();
+        for (List<Environment> aliases : groups.values()) {
+            Environment chosen = aliases.stream().min(Comparator.comparing((Environment e) -> e.name().equals("default"))
+                .thenComparing(e -> !e.current()).thenComparing(Environment::name)).orElseThrow();
+            result.add(new Environment(chosen.name(), chosen.description(), chosen.endpoint(), chosen.transport(), chosen.supported(), chosen.reason(), aliases.stream().anyMatch(Environment::current)));
+        }
+        return List.copyOf(result);
+    }
+    private static Path localSocketPath(String endpoint) throws IOException {
+        URI uri = URI.create(endpoint);
+        if (uri.getAuthority() != null) throw new IllegalArgumentException("Socket authority is not local");
+        Path path = Path.of(uri.getPath()).toAbsolutePath().normalize();
+        for (int i = 0; i < 16; i++) {
+            if (Files.isSymbolicLink(path)) {
+                Path target = Files.readSymbolicLink(path);
+                path = (target.isAbsolute() ? target : path.getParent().resolve(target)).normalize();
+            } else {
+                // Missing socket files still share identity through their known symlink.
+                if (Files.exists(path)) return path.toRealPath();
+                if (path.getParent() != null && Files.exists(path.getParent())) return path.getParent().toRealPath().resolve(path.getFileName());
+                return path;
+            }
+        }
+        throw new IOException("Socket symlink cycle");
+    }
+    Discovery makeDefaultEnvironment(String name, String expectedEndpoint) {
+        if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
+        synchronized (defaultContextLock) {
+            Lock lock = contextLock(name).readLock(); lock.lock();
+            try {
+                resolve(name, expectedEndpoint);
+                execute(List.of("context", "use", name), READ_TIMEOUT, null);
+                return environments();
+            } finally { lock.unlock(); }
+        }
     }
     Environment addSshEnvironment(String name, String endpoint) {
         if (!validContext(name)) throw new ApiException(400, "Use letters, numbers, dots, dashes or underscores for the environment name");
@@ -85,7 +133,7 @@ final class DockerService implements AutoCloseable {
             if (!expectedEndpoint.equals(actualEndpoint)) throw new ApiException(409, "This host's address changed. Refresh hosts before removing it.");
             List<JsonObject> contexts = lines(execute(List.of("context", "ls", "--format", "{{json .}}"), READ_TIMEOUT, null).stdout());
             if (contexts.stream().anyMatch(c -> name.equals(text(c, "Name")) && bool(c, "Current")))
-                throw new ApiException(409, "This is Docker's active context. Choose another active context in Docker before removing it.");
+                throw new ApiException(409, "This is the default host. Make another host default before removing it.");
             synchronized (pulls) {
                 if (pulls.values().stream().anyMatch(p -> p.environment.name().equals(name) && List.of("queued", "running", "cancelling").contains(p.view().state())))
                     throw new ApiException(409, "Finish or cancel this host's image pull before removing it");

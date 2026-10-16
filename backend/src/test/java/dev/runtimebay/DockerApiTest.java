@@ -49,6 +49,19 @@ class DockerApiTest {
         assertEquals(400, post("/environments/remote/containers/--all/stop", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\"}").statusCode());
         assertEquals(400, post("/environments/remote/containers", "{\"endpoint\":\"" + DockerServiceTest.REMOTE + "\",\"definition\":{\"name\":\"fraction\",\"image\":\"nginx:alpine\",\"ports\":[{\"host\":8080.5,\"container\":80}]}}").statusCode());
     }
+    @Test void changesTheDefaultHostThroughAnAuthenticatedExplicitAction() throws Exception {
+        String body = "{\"expectedEndpoint\":\"" + DockerServiceTest.REMOTE + "\"}";
+        for (boolean authenticated : new boolean[]{false, true}) {
+            var builder = request("/environments/remote/default", authenticated).header("Content-Type", "application/json");
+            if (authenticated) builder.header("Origin", "https://example.com");
+            assertEquals(authenticated ? 403 : 401, client.send(builder.POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        }
+        assertEquals("local", fixture.currentContext);
+        var response = post("/environments/remote/default", body);
+        assertEquals(200, response.statusCode()); assertEquals("remote", fixture.currentContext);
+        var hosts = JsonParser.parseString(response.body()).getAsJsonObject().getAsJsonArray("environments");
+        assertEquals(1, java.util.stream.StreamSupport.stream(hosts.spliterator(), false).filter(h -> h.getAsJsonObject().get("current").getAsBoolean()).count());
+    }
     @Test void editsHostsWithAuthenticationOriginChecksAndEndpointSnapshots() throws Exception {
         String body = "{\"expectedEndpoint\":\"" + DockerServiceTest.REMOTE + "\",\"endpoint\":\"ssh://alek@helfer:2222\",\"description\":\"Helfer\"}";
         for (boolean authenticated : new boolean[]{false, true}) {

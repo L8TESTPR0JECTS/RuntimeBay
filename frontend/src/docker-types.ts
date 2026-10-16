@@ -1,4 +1,6 @@
 export interface DockerEnvironment { name: string; description: string; endpoint: string; transport: 'local' | 'ssh' | 'tls' | 'unsupported'; supported: boolean; reason: string | null; current: boolean }
+/** Friendly names are presentation only; requests and workflow links retain context IDs. */
+export function dockerHostName(host: DockerEnvironment | null | undefined): string { return host?.transport === 'local' ? 'This Mac' : host?.name || ''; }
 export interface DockerDiscovery { available: boolean; environments: DockerEnvironment[]; error: string | null }
 export interface DockerEngine { name: string; version: string; operatingSystem: string; architecture: string; cpus: number; memory: number; containers: number; running: number; images: number }
 export interface DockerContainer { id: string; name: string; image: string; state: string; status: string; ports: string; created: string; composeProject: string; workspaceProject: string }

@@ -2,10 +2,11 @@ import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, OnIni
 import { FormsModule } from '@angular/forms';
 import { LoadingService } from './loading/loading.service';
 import { Project } from './types';
-import { DockerEnvironment, DockerDiscovery, DockerContainer, DockerOverview, DockerInventory, DockerDetails, DockerOperation } from './docker-types';
+import { dockerHostName, DockerEnvironment, DockerDiscovery, DockerContainer, DockerOverview, DockerInventory, DockerDetails, DockerOperation } from './docker-types';
 
 @Component({ selector: 'app-containers', standalone: true, imports: [FormsModule], templateUrl: './containers.html' })
 export class Containers implements OnInit, OnDestroy, OnChanges {
+  readonly hostLabel = dockerHostName;
   private loader = inject(LoadingService);
   private loadingTasks = this.loader.scope();
   @Input() session = '';
@@ -90,7 +91,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
       const existing = discovered.environments.find(h => h.name === this.hostName());
       if (!existing || existing.endpoint !== previous?.endpoint) {
         const locals = discovered.environments.filter(h => h.transport === 'local' && h.supported);
-        this.selectHost(locals.find(h => h.current)?.name || locals[0]?.name || '');
+        this.selectHost(discovered.environments.find(h => h.current && h.supported)?.name || locals[0]?.name || discovered.environments.find(h => h.supported)?.name || '');
       } else void this.refresh();
     } catch (e) { if (!this.disposed) this.error.set((e as Error).message); }
     finally { this.refreshingHosts.set(false); releaseLoading(); }
@@ -104,7 +105,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
       if (!this.refreshPromise) this.refreshPromise = this.refreshOnce().finally(() => { this.refreshPromise = undefined; });
       return this.refreshPromise;
     };
-    return foreground && this.page === 'containers' ? this.loadingTasks.run(`Loading ${this.hostName() || 'containers'}…`, work) : work();
+    return foreground && this.page === 'containers' ? this.loadingTasks.run(`Loading ${this.hostLabel(this.host()) || 'containers'}…`, work) : work();
   }
   private async refreshOnce() {
     if (this.disposed) return;
@@ -166,9 +167,20 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     if (host.name === 'default' || host.current) return;
     this.formError.set(''); this.removingHost.set({ ...host }); this.modal.set('remove-host');
   }
+  async makeDefault(host: DockerEnvironment) {
+    if (host.current || !host.supported || this.saving()) return;
+    const releaseLoading = this.loadingTasks.begin(`Making ${this.hostLabel(host)} the default host…`);
+    this.saving.set(true); this.error.set('');
+    try {
+      const discovery = await this.api<DockerDiscovery>(this.path(host) + '/default', 'POST', { expectedEndpoint: host.endpoint });
+      this.discovery.set(discovery); this.selectHost(host.name);
+      if (discovery.error) this.error.set(discovery.error);
+    } catch (e) { this.error.set((e as Error).message); }
+    finally { this.saving.set(false); releaseLoading(); }
+  }
   async removeHost() {
     const host = this.removingHost(); if (!host || this.saving()) return;
-    const releaseLoading = this.loadingTasks.begin(`Removing ${host.name}…`);
+    const releaseLoading = this.loadingTasks.begin(`Removing ${this.hostLabel(host)}…`);
     this.saving.set(true); this.formError.set('');
     try {
       await this.api(this.path(host), 'DELETE', { expectedEndpoint: host.endpoint });
@@ -181,7 +193,7 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   }
   askRemove(container: DockerContainer) { this.removeTarget = container; this.modalHost = this.host(); this.formError.set(''); this.modal.set('remove'); }
   removeName() { return this.removeTarget?.name || ''; }
-  targetName() { return this.modalHost?.name || ''; }
+  targetName() { return this.hostLabel(this.modalHost); }
   targetEndpoint() { return this.modalHost?.endpoint || ''; }
   async removeContainer() {
     if (!this.removeTarget || !this.modalHost) return;

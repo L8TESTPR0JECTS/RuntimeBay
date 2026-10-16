@@ -561,3 +561,5 @@ app-containers {
 .resource-table td strong {
   color:var(--ink)
 }
+
+.host-default-badge{display:inline-flex;align-items:center;background:var(--surface-soft);border:1px solid var(--accent);color:var(--accent);padding:4px 8px;border-radius:20px;font-size:calc(10px * var(--font-scale, 1));white-space:nowrap}.host-card-heading>small{margin-left:auto}

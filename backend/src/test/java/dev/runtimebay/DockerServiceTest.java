@@ -27,6 +27,7 @@ class DockerServiceTest {
         volatile Path envFile;
         volatile String envContents;
         volatile boolean failPull, failUpdate, failRemove;
+        String currentContext = "local";
         FakeDocker() {
             contexts.put("local", context("local", LOCAL, false, false));
             contexts.put("remote", context("remote", REMOTE, false, false));
@@ -43,7 +44,7 @@ class DockerServiceTest {
             if (args.size() >= 2 && args.get(0).equals("context")) {
                 switch (args.get(1)) {
                     case "ls":
-                        return ok(contexts.keySet().stream().sorted().map(name -> "{\"Name\":\"" + name + "\",\"Current\":" + name.equals("local") + "}").reduce("", (a, b) -> a + b + "\n"));
+                        return ok(contexts.keySet().stream().sorted().map(name -> "{\"Name\":\"" + name + "\",\"Current\":" + name.equals(currentContext) + "}").reduce("", (a, b) -> a + b + "\n"));
                     case "inspect":
                         JsonArray results = new JsonArray();
                         for (String name : args.subList(2, args.size())) {
@@ -64,6 +65,8 @@ class DockerServiceTest {
                     case "rm":
                         if (failRemove) return new DockerService.Result(1, "", "fixture removal failed");
                         contexts.remove(args.get(2)); return ok(args.get(2));
+                    case "use":
+                        currentContext = args.get(2); return ok(currentContext);
                 }
             }
             assertEquals("--context", args.get(0));
@@ -111,6 +114,32 @@ class DockerServiceTest {
         assertTrue(result.environments().stream().filter(e -> Set.of("local", "remote", "tls").contains(e.name())).allMatch(Environment::supported));
         assertTrue(result.environments().stream().filter(e -> Set.of("unsafe", "skipverify").contains(e.name())).noneMatch(Environment::supported));
         assertEquals("ssh", docker.resolve("remote", REMOTE).transport());
+    }
+    @Test void groupsLocalSocketAliasesWithoutDeletingContextsOrMergingDistinctEngines(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        Path socket = Files.createFile(directory.resolve("docker.sock"));
+        Path alias = Files.createSymbolicLink(directory.resolve("alias.sock"), socket);
+        fake.contexts.clear(); fake.currentContext = "default";
+        fake.contexts.put("default", FakeDocker.context("default", "unix://" + alias, false, false));
+        fake.contexts.put("desktop-linux", FakeDocker.context("desktop-linux", "unix://" + socket, false, false));
+        fake.contexts.put("colima", FakeDocker.context("colima", "unix://" + directory.resolve("colima.sock"), false, false));
+        var hosts = docker.environments().environments();
+        assertEquals(2, hosts.size());
+        var local = hosts.stream().filter(e -> e.name().equals("desktop-linux")).findFirst().orElseThrow();
+        assertTrue(local.current()); assertEquals("unix://" + socket, local.endpoint());
+        assertEquals(3, fake.contexts.size()); assertTrue(fake.calls.stream().allMatch(a -> a.getFirst().equals("context")));
+        Files.delete(socket); // Docker stopped: the alias must not reappear as another card.
+        assertEquals(2, docker.environments().environments().size());
+    }
+    @Test void movesTheDefaultBadgeAndRemovalProtectionOnlyOnAnExplicitDefaultCommand() {
+        var result = docker.makeDefaultEnvironment("remote", REMOTE);
+        assertEquals("remote", fake.currentContext);
+        assertEquals(List.of("remote"), result.environments().stream().filter(Environment::current).map(Environment::name).toList());
+        assertTrue(fake.calls.contains(List.of("context", "use", "remote")));
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.removeEnvironment("remote", REMOTE)).status);
+        docker.removeEnvironment("local", LOCAL); assertFalse(fake.contexts.containsKey("local"));
+        assertEquals(409, assertThrows(ApiException.class, () -> docker.makeDefaultEnvironment("remote", "ssh://stale")).status);
+        assertEquals(400, assertThrows(ApiException.class, () -> docker.makeDefaultEnvironment("unsafe", "tcp://unsafe.example.com:2375")).status);
+        assertEquals("remote", fake.currentContext);
     }
     @Test void allRemoteOperationsUseTheChosenContextAndNoGlobalContextSwitch() {
         Overview result = docker.overview("remote", REMOTE);

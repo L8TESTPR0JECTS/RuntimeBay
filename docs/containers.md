@@ -4,7 +4,7 @@ Runtime Bay provides a Portainer-inspired workflow for Docker standalone engines
 
 ## Local engines
 
-Install Docker CLI and start a local engine such as Docker Desktop or Colima. Open **Hosts** to discover environments, or **Containers** to view workloads. Existing contexts appear, with the current local context preferred. Remote contexts connect when selected. Docker is detected on PATH, in common Homebrew locations, and inside the Docker Desktop bundle. Development can override the executable with `RUNTIMEBAY_DOCKER`.
+Install Docker CLI and start a local engine such as Docker Desktop or Colima. Open **Hosts** to discover environments, or **Containers** to view workloads. Local socket aliases are grouped into one **This Mac** card, with a **Default** badge on the active Docker host. Symbolic links are resolved without contacting an engine, so Docker Desktop’s `default` and `desktop-linux` connections appear once when they use the same socket. Distinct engine sockets remain separate. The default host is preferred when choosing a host. Remote contexts connect when selected. Docker is detected on PATH, in common Homebrew locations, and inside the Docker Desktop bundle. Development can override the executable with `RUNTIMEBAY_DOCKER`.
 
 Missing Docker disables the container workspace while normal project services continue to work.
 
@@ -27,7 +27,7 @@ Use **Edit host** on a host card to update its description and SSH address (user
 
 Edits use the original address as a snapshot: a concurrent address change is rejected with a refresh message. An edit is refused while the host has an operation in flight, and queued commands recheck their address before execution. Existing workflow container links keep their original endpoint and refuse operations after an address change; unlink and relink them explicitly. Running containers are not stopped or moved. A failed save leaves the form open with its error and entered values.
 
-**Remove host** opens a confirmation showing the host's name and address. Confirming removes that saved Docker context from your Mac using [`docker context rm`](https://docs.docker.com/reference/cli/docker/context/rm/); no engine resources or remote machine data are deleted. Workflow links are retained and become unavailable until the same connection is restored or the links are explicitly removed. The Docker-managed `default` context and Docker's currently active context cannot be removed here; select a different active context through Docker first. Busy hosts and changed endpoint snapshots are rejected. Runtime Bay does not force removal or switch the global Docker context. Canceling leaves the connection intact; errors leave the confirmation open for retry.
+**Remove host** opens a confirmation showing the host's name and address. Confirming removes that saved Docker context from your Mac using [`docker context rm`](https://docs.docker.com/reference/cli/docker/context/rm/); no engine resources or remote machine data are deleted. Workflow links are retained and become unavailable until the same connection is restored or the links are explicitly removed. The default host is protected from removal; use **Make default** on another host first. Docker’s virtual `default` context itself remains managed by Docker. Busy hosts and changed endpoint snapshots are rejected. Runtime Bay does not force removal or switch the global Docker context. Canceling leaves the connection intact; errors leave the confirmation open for retry.
 
 Existing TCP contexts require verified mutual TLS with a trusted CA, client certificate, and client key. Unverified or unauthenticated TCP contexts are unsupported. See [Docker's SSH/TLS documentation](https://docs.docker.com/engine/security/protect-access/).
 
@@ -80,3 +80,9 @@ RUNTIMEBAY_LIVE_DOCKER_CONTEXT=desktop-linux RUNTIMEBAY_LIVE_DOCKER_PULL=1 npm r
 ```
 
 The container fixture is removed in cleanup. Downloaded images remain cached. No live remote host is required or modified by these tests.
+
+## Default host
+
+**Make default** on a host card moves the **Default** badge and makes that host the initial choice in Runtime Bay and the workflow container picker. This is an explicit [`docker context use`](https://docs.docker.com/reference/cli/docker/context/use/) action: Docker’s saved default changes for shells and apps sharing the same Docker configuration, unless overridden there. No engine connection is needed, and existing running containers and workflow links retain their explicit host addresses. Adding, editing, removing, browsing, and controlling hosts do not switch the default automatically. Stale endpoints and unsupported hosts are rejected before switching.
+
+Friendly names are presentation only: **This Mac** is shown in host cards, selectors, and container headings, while original context IDs remain available in connection details and existing saved workflow links. Grouping aliases does not delete or rename Docker contexts.

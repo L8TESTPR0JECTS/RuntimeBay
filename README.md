@@ -43,7 +43,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
 | **Containers** | Create stopped containers; start, stop, restart, pause, resume, and remove stopped containers; inspect logs and resource usage. |
 | **Images & storage** | Pull Docker Hub or other registry images with progress/cancellation; inspect cached images, named volumes, and networks. |
-| **Hosts** | A separate page for local Docker contexts and remote SSH or verified mutual-TLS environments; edit host details or remove saved connections without affecting running containers. |
+| **Hosts** | A single **This Mac** card for local socket aliases, remote host cards, a movable **Default** badge, and editable/removable saved connections. |
 | **Appearance** | Twelve preset palettes with a live preview; Light, Dark, or System mode; preferences saved across app launches. |
 | **Native macOS shell** | AppKit window and menus, WKWebView, native folder selection, appearance-aware window chrome, and the Runtime Bay app icon. |
 

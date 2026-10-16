@@ -194,6 +194,10 @@ final class ApiServer implements AutoCloseable {
         }
         if (parts.length >= 5 && parts[2].equals("environments")) {
             String context = parts[3];
+            if (parts.length == 5 && parts[4].equals("default") && method.equals("POST")) {
+                JsonObject value = body(e);
+                json(e, 200, docker.makeDefaultEnvironment(context, string(value, "expectedEndpoint"))); return;
+            }
             if (parts.length == 5 && method.equals("GET")) {
                 String endpoint = query(e, "endpoint");
                 if (parts[4].equals("overview")) { json(e, 200, docker.overview(context, endpoint)); return; }

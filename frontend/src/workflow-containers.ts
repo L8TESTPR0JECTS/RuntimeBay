@@ -1,12 +1,13 @@
 import { Component, Input, OnChanges, OnDestroy, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DockerDiscovery, DockerEnvironment, DockerOverview, DockerContainer } from './docker-types';
+import { dockerHostName, DockerDiscovery, DockerEnvironment, DockerOverview, DockerContainer } from './docker-types';
 import { LoadingService } from './loading/loading.service';
 interface Link { id: string; projectId: string; context: string; endpoint: string; containerId: string; name: string; image: string }
 interface ContainerState { link: Link; state: string; status: string; ports: string; error: string | null }
 
 @Component({ selector: 'app-workflow-containers', standalone: true, imports: [FormsModule], templateUrl: './workflow-containers.html' })
 export class WorkflowContainers implements OnChanges, OnDestroy {
+  readonly hostLabel = dockerHostName;
   @Input() projectId = '';
   @Input() session = '';
   private tasks = inject(LoadingService).scope();
@@ -81,7 +82,7 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
         if (revision !== this.revision || !this.open()) return;
         this.discovery.set(discovery);
         const locals = discovery.environments.filter(host => host.supported && host.transport === 'local');
-        const selected = discovery.environments.find(host => host.name === this.hostName() && host.supported) || locals.find(host => host.current) || locals[0];
+        const selected = discovery.environments.find(host => host.name === this.hostName() && host.supported) || discovery.environments.find(host => host.current && host.supported) || locals[0] || discovery.environments.find(host => host.supported);
         if (selected) await this.selectHost(selected.name);
       } catch (error) { if (revision === this.revision) this.formError.set((error as Error).message); }
     });
