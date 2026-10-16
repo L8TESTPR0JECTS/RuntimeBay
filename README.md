@@ -43,7 +43,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
 | **Containers** | Create stopped containers; start, stop, restart, pause, resume, and remove stopped containers; inspect logs and resource usage. |
 | **Images & storage** | Pull Docker Hub or other registry images with progress/cancellation; inspect cached images, named volumes, and networks. |
-| **Hosts** | A single **This Mac** card for local socket aliases, remote host cards, a movable **Default** badge, and editable/removable saved connections. |
+| **Hosts** | This Mac and saved SSH machines, independent of Docker; inspect Python, Java, Node.js, AWS CLI and other tools, view process snapshots, and open host-specific terminals. |
 | **Appearance** | Twelve preset palettes with a live preview; Light, Dark, or System mode; preferences saved across app launches. |
 | **Native macOS shell** | AppKit window and menus, WKWebView, native folder selection, appearance-aware window chrome, and the Runtime Bay app icon. |
 
@@ -57,16 +57,19 @@ Standard Mac shortcuts are available in the menu bar: **⌘+ / ⌘−** zoom, **
 
 ```text
 Import a project → add its service commands → start → inspect output and ports → stop or restart
-Connect a host   → view its containers       → inspect, create, and control workloads
+Add a host       → inspect tools & processes → open a terminal on that machine
+Connect Docker   → view its containers       → inspect, create, and control workloads
 ```
 
 **A workflow combines a project’s services and linked container dependencies.** Use **Link container** in the project view to select Kafka, a database, or another existing container from a Docker host. Links persist across launches; unlinking keeps the container intact. Containers created with a workflow project selected are linked automatically. Service controls and container controls remain explicit.
 
-**Containers and Hosts have separate navigation entries.** Containers keeps a host selector so each action has an explicit destination. Hosts handles discovery and remote connection setup. Selecting **View containers** carries that host into the container workspace.
+**Hosts represents machines.** Add Helfer or another physical/virtual node by hostname, IP address, or SSH configuration alias. **View host** inspects its login-shell tools and up to 100 process names/PIDs; **Open terminal** starts an interactive shell on that specific machine. Python 3, pip, Java, javac, Node.js, npm, AWS CLI, Git, Docker CLI, Maven, Gradle, pnpm, Yarn, and Go have individual availability/version results. Hosts work without Docker. See the [machine-host guide](docs/hosts.md).
 
-Shell services and workspace terminals stop when Runtime Bay closes. Docker containers keep running on their engine.
+**Containers owns Docker connections.** Its connection selector and **Docker connections** page manage local or remote Docker engines. A machine’s identity and preferred-host setting are separate from Docker context IDs and Docker’s active context.
 
-Workspace terminals start in the selected project’s root, or your home folder when there is no project. They keep running as you switch pages and reconnect after **⌘R**. Each tab has a close button that stops its shell and its processes. There is no application-imposed tab count; macOS resources set the practical limit. See [terminal behavior and lifecycle](docs/terminals.md).
+Local shell services and app-owned terminal sessions stop when Runtime Bay closes. Closing an SSH tab disconnects its session; remote jobs may continue according to the remote shell and service manager. Docker containers keep running on their engine.
+
+Local workspace terminals start in the selected project’s root, or your home folder when there is no project. New terminal tabs use Runtime Bay’s preferred machine; explicit **Terminal** buttons choose that machine directly. Remote SSH tabs start in the remote login environment and show the host name. Saved project service commands still execute locally; remote workflow service supervision is not implemented yet. They keep running as you switch pages and reconnect after **⌘R**. Each tab has a close button that stops its shell and its processes. There is no application-imposed tab count; macOS resources set the practical limit. See [terminal behavior and lifecycle](docs/terminals.md).
 
 ## Databases inside a workflow
 
@@ -90,6 +93,9 @@ flowchart LR
   API --> Database["Private database gateway"]
   Database --> CloudBeaver["Local CloudBeaver Community companion"]
   CloudBeaver --> DB["Workflow database connections"]
+  API --> Machines["Saved machine registry · host tools & process inventory"]
+  Machines --> SSH["Verified SSH · remote machines"]
+  PTY --> SSH
   API --> Docker["User-installed Docker CLI"]
   Docker --> Local["Local Unix-socket engine"]
   Docker --> Remote["Remote SSH / verified TLS engine"]
@@ -176,7 +182,7 @@ Validation covers real process ownership and shutdown, independent PTY shells, i
 
 ## Project status
 
-**v0.5 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, an embedded database GUI, container management, separate host navigation, and customization are implemented.
+**v0.5 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, an embedded database GUI, container management, independent machine hosts with SSH terminals and tool/process inspection, and customization are implemented.
 
 The broader direction is to connect Git, coding agents, API collections, debugger sessions, and deployments to the same projects and runs. Those integrations are planned and are not included in the current application. See [integration research](docs/integrations.md).
 

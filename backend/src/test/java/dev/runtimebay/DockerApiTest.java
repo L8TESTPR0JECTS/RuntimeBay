@@ -41,6 +41,24 @@ class DockerApiTest {
         assertEquals(403, rejected.statusCode());
         assertTrue(fixture.running);
     }
+    @Test void machineHostsHaveAnIndependentAuthenticatedRegistryAndDefault() throws Exception {
+        String base = "http://127.0.0.1:" + server.port();
+        assertEquals(401, client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts")).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
+        String definition = "{\"name\":\"Helfer\",\"address\":\"helfer\",\"user\":\"alek\",\"port\":22}";
+        var added = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts")).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, added.statusCode());
+        String id = JsonParser.parseString(added.body()).getAsJsonObject().get("id").getAsString();
+        var changed = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts/" + id + "/default")).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, changed.statusCode()); assertEquals(id, JsonParser.parseString(changed.body()).getAsJsonObject().get("defaultHostId").getAsString());
+        assertEquals(id, new HostRegistry(store.directory()).view().defaultHostId());
+        assertEquals("local", fixture.currentContext); assertTrue(fixture.calls.isEmpty());
+        var rejected = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts")).header("Authorization", "Bearer " + token).header("Origin", "https://example.com").header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(403, rejected.statusCode());
+        var fractional = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts")).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition.replace(":22", ":22.5"))).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(400, fractional.statusCode());
+        var inventory = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts/" + id + "/inventory")).header("Authorization", "Bearer " + token).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, inventory.statusCode()); assertTrue(inventory.body().contains("idle"));
+    }
     @Test void usesEndpointSnapshotAndValidatesContainerIdsAndPorts() throws Exception {
         String query = "?endpoint=" + URLEncoder.encode(DockerServiceTest.REMOTE, StandardCharsets.UTF_8);
         var overview = get("/environments/remote/overview" + query, true);

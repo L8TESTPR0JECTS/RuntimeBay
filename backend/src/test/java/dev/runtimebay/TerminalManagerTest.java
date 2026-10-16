@@ -18,6 +18,15 @@ class TerminalManagerTest {
         terminals = new TerminalManager(store, launcher);
     }
     @AfterEach void close() { terminals.close(); }
+    @Test void ptySupervisorExecutesAnExplicitProgramWithoutAShellWrapper() throws Exception {
+        Path launcher = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher")).resolveSibling("runtimebay-terminal");
+        Process process = new ProcessBuilder(launcher.toString(), "/usr/bin/printf", "%s", "HOST_PTY_LITERAL;$(not-executed)").start();
+        try {
+            assertTrue(process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(0, process.exitValue());
+            assertTrue(new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).contains("HOST_PTY_LITERAL;$(not-executed)"));
+        } finally { process.destroyForcibly(); }
+    }
     String await(String id, String marker) {
         StringBuilder text = new StringBuilder(); long[] cursor = {0};
         assertTimeoutPreemptively(Duration.ofSeconds(15), () -> {

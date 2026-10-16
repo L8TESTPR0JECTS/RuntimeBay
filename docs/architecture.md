@@ -65,7 +65,15 @@ Workflow container actions require both project membership and the saved host/id
 
 ## Workspace terminals
 
-A separate [terminal subsystem](terminals.md) owns interactive shells independently of configured services. A native `forkpty` supervisor starts each login zsh in its own session. xterm.js renders UTF-8/ANSI output inside the Angular workspace. Input and resize requests, output cursor polling, and tab lifecycle use the same authenticated local API. Closing a tab or the engine cleans up all process groups in the captured shell session, including interactive foreground and background jobs.
+A separate [terminal subsystem](terminals.md) owns interactive shells independently of configured services. A native `forkpty` supervisor starts each local login zsh or explicit SSH client in its own session. xterm.js renders UTF-8/ANSI output inside the Angular workspace. Input and resize requests, output cursor polling, and tab lifecycle use the same authenticated local API. Closing a tab or the engine cleans up the captured local process session. Disconnecting SSH does not imply ownership or termination of every remote process.
+
+## Machine hosts
+
+`HostRegistry` stores machine identities and Runtime Bay's preferred machine in `hosts.json`, independently of Docker's contexts. `MachineHosts` owns bounded asynchronous inspections; `HostTools` runs fixed version probes and a user-process snapshot through the selected machine's login shell. Remote probes use strict SSH host-key checks and batch authentication. Tooling, hostnames, and process names are rendered as text. No remote agent or Docker installation is required.
+
+Host terminals and inspection may share an authenticated SSH connection through a private temporary control directory scoped to this app instance and machine ID/target/account. This supports signing in interactively before retrying inspection, without saving credentials. The native PTY executes the SSH argv directly; user-provided destinations are validated and never interpolated into a shell command. Session controls are cleaned after scan workers and terminal clients close.
+
+The preferred machine applies to new terminal tabs. Saved project service definitions still execute locally; remote workflow supervision and deployment are future work. Docker engine configuration remains inside Containers, and machine actions do not mutate Docker settings.
 
 ## Local API boundary
 

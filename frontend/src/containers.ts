@@ -65,7 +65,8 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     effect(() => { if (this.modal()) setTimeout(() => (document.querySelector<HTMLElement>('.dock-modal input, .dock-modal textarea') || document.querySelector<HTMLElement>('.dock-modal button'))?.focus(), 0); });
   }
   ngOnChanges(changes: SimpleChanges) { if (changes['page'] && this.discovery() && this.page === 'containers') void this.refresh(true); }
-  viewContainers(name: string) { this.selectHost(name); this.navigate.emit('containers'); }
+  viewContainers(name: string) { this.page = 'containers'; this.selectHost(name); }
+  showConnections() { this.page = 'hosts'; }
   ngOnInit() {
     window.addEventListener('keydown', this.keyListener);
     void this.api<DockerOperation[]>('/operations').then(operations => {

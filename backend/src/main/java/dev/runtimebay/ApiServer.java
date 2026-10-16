@@ -20,6 +20,8 @@ final class ApiServer implements AutoCloseable {
     private final TerminalManager terminals;
     private final WorkflowContainers workflowContainers;
     private final DatabaseWorkspace databases;
+    private final MachineHosts machineHosts;
+    private final Path hostSshControls;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -32,6 +34,9 @@ final class ApiServer implements AutoCloseable {
         this.store = store; this.runtimes = runtimes; this.webRoot = webRoot.toRealPath(); this.token = token; this.docker = docker;
         appearance = new AppearanceStore(store.directory());
         workflowContainers = new WorkflowContainers(store, docker);
+        hostSshControls = Files.createTempDirectory(Path.of("/tmp"), "runtimebay-ssh-");
+        Files.setPosixFilePermissions(hostSshControls, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+        machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls));
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"));
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
@@ -67,6 +72,7 @@ final class ApiServer implements AutoCloseable {
         String method = e.getRequestMethod();
         String[] parts = path.substring(1).split("/");
         if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
+        if (path.equals("/api/hosts") || path.startsWith("/api/hosts/")) { routeHosts(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
         if (path.equals("/api/preferences")) {
             if (method.equals("GET")) { json(e, 200, appearance.get()); return; }
@@ -140,11 +146,36 @@ final class ApiServer implements AutoCloseable {
         }
         throw new ApiException(404, "Endpoint not found");
     }
+    private void routeHosts(HttpExchange e, String[] parts) throws IOException {
+        String method = e.getRequestMethod();
+        if (parts.length == 2 && method.equals("GET")) { json(e, 200, machineHosts.view()); return; }
+        if ((parts.length == 2 && method.equals("POST")) || (parts.length == 3 && method.equals("PUT"))) {
+            JsonObject value = body(e); Integer port = null;
+            if (value.has("port") && !value.get("port").isJsonNull()) {
+                var number = value.get("port");
+                if (!number.isJsonPrimitive() || !number.getAsJsonPrimitive().isNumber() || !number.getAsString().matches("[0-9]{1,5}")) throw new ApiException(400, "Enter a whole-number SSH port");
+                port = number.getAsInt();
+            }
+            json(e, parts.length == 2 ? 201 : 200, machineHosts.save(parts.length == 2 ? null : parts[2], string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port)); return;
+        }
+        if (parts.length == 3 && method.equals("DELETE")) { machineHosts.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 4) {
+            String id = parts[2];
+            if (parts[3].equals("default") && method.equals("POST")) { body(e); machineHosts.makeDefault(id); json(e, 200, machineHosts.view()); return; }
+            if (parts[3].equals("inventory") && method.equals("GET")) { json(e, 200, machineHosts.status(id)); return; }
+            if (parts[3].equals("inventory") && method.equals("POST")) { body(e); json(e, 202, machineHosts.inspect(id)); return; }
+        }
+        throw new ApiException(404, "Host endpoint not found");
+    }
     private void routeTerminals(HttpExchange e, String[] parts) throws IOException {
         String method = e.getRequestMethod();
         if (parts.length == 2) {
             if (method.equals("GET")) { json(e, 200, terminals.list()); return; }
-            if (method.equals("POST")) { json(e, 201, terminals.create(string(body(e), "projectId"))); return; }
+            if (method.equals("POST")) {
+                JsonObject value = body(e); String hostId = string(value, "hostId");
+                var host = machineHosts.get(hostId == null || hostId.isBlank() ? machineHosts.view().defaultHostId() : hostId);
+                json(e, 201, host.local() ? terminals.create(string(value, "projectId")) : terminals.createRemote(host, hostSshControls)); return;
+            }
         }
         if (parts.length == 3 && method.equals("DELETE")) { terminals.remove(parts[2]); json(e, 200, Map.of("ok", true)); return; }
         if (parts.length == 4) {
@@ -284,5 +315,10 @@ final class ApiServer implements AutoCloseable {
         e.sendResponseHeaders(status, bytes.length);
         e.getResponseBody().write(bytes);
     }
-    @Override public void close() { server.stop(0); databases.close(); terminals.close(); requests.shutdownNow(); }
+    @Override public void close() {
+        server.stop(0); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
+        try (DirectoryStream<Path> sockets = Files.newDirectoryStream(hostSshControls)) { for (Path socket : sockets) Files.deleteIfExists(socket); }
+        catch (IOException e) { System.err.println("Could not clean SSH control sockets"); }
+        try { Files.deleteIfExists(hostSshControls); } catch (IOException e) { System.err.println("Could not remove SSH session directory"); }
+    }
 }

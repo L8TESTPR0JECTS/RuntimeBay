@@ -8,7 +8,7 @@ import java.util.concurrent.*;
 
 /** Live, app-owned PTYs. Neither commands nor terminal output are persisted. */
 final class TerminalManager implements AutoCloseable {
-    record View(String id, String name, String directory, Integer exitCode) {}
+    record View(String id, String name, String directory, Integer exitCode, String hostId, String hostName) {}
     record Output(String data, long next, boolean truncated, Integer exitCode) {}
     private final ProjectStore projects;
     private final Path launcher;
@@ -19,16 +19,27 @@ final class TerminalManager implements AutoCloseable {
     TerminalManager(ProjectStore projects, Path launcher) { this.projects = projects; this.launcher = launcher; }
     synchronized List<View> list() { return shells.values().stream().map(Shell::view).toList(); }
     synchronized View create(String projectId) throws IOException {
-        if (closed) throw new ApiException(503, "Terminals are shutting down");
         Path directory = projectId == null || projectId.isBlank() ? Path.of(System.getProperty("user.home")) : Path.of(projects.project(projectId).path());
+        return launch(directory, List.of(), "local", "This Mac");
+    }
+    synchronized View createRemote(HostRegistry.Host host) throws IOException {
+        return createRemote(host, null);
+    }
+    synchronized View createRemote(HostRegistry.Host host, Path controls) throws IOException {
+        if (host.local()) return create(null);
+        return launch(Path.of(System.getProperty("user.home")), HostRegistry.sshArguments(host, true, controls), host.id(), host.name());
+    }
+    private View launch(Path directory, List<String> command, String hostId, String hostName) throws IOException {
+        if (closed) throw new ApiException(503, "Terminals are shutting down");
         if (!Files.isDirectory(directory)) throw new ApiException(400, "The terminal folder is no longer available");
         if (!Files.isExecutable(launcher)) throw new ApiException(503, "The terminal supervisor is missing. Rebuild Runtime Bay.");
-        ProcessBuilder builder = new ProcessBuilder(launcher.toAbsolutePath().toString()).directory(directory.toFile());
+        var arguments = new ArrayList<>(List.of(launcher.toAbsolutePath().toString())); arguments.addAll(command);
+        ProcessBuilder builder = new ProcessBuilder(arguments).directory(directory.toFile());
         builder.environment().keySet().removeIf(key -> key.startsWith("RUNTIMEBAY_"));
         builder.environment().put("TERM", "xterm-256color"); builder.environment().put("COLORTERM", "truecolor");
         // Never leave an unread stderr pipe behind; diagnostics do not contain shell output.
         builder.redirectError(ProcessBuilder.Redirect.DISCARD);
-        Shell shell = new Shell(UUID.randomUUID().toString(), "Terminal " + (++number), directory.toString(), builder.start());
+        Shell shell = new Shell(UUID.randomUUID().toString(), (hostId.equals("local") ? "" : hostName + " · ") + "Terminal " + (++number), hostId.equals("local") ? directory.toString() : command.getLast(), builder.start(), hostId, hostName);
         shells.put(shell.id, shell); readers.submit(shell::read);
         return shell.view();
     }
@@ -55,15 +66,16 @@ final class TerminalManager implements AutoCloseable {
         private static final int CAPACITY = 1024 * 1024;
         final String id, name, directory;
         final Process process;
+        final String hostId, hostName;
         final DataOutputStream input;
         final byte[] buffer = new byte[CAPACITY];
         long next;
         Integer exitCode;
         boolean closing;
-        Shell(String id, String name, String directory, Process process) {
-            this.id = id; this.name = name; this.directory = directory; this.process = process; input = new DataOutputStream(process.getOutputStream());
+        Shell(String id, String name, String directory, Process process, String hostId, String hostName) {
+            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; input = new DataOutputStream(process.getOutputStream());
         }
-        synchronized View view() { return new View(id, name, directory, exitCode); }
+        synchronized View view() { return new View(id, name, directory, exitCode, hostId, hostName); }
         void read() {
             try (InputStream output = process.getInputStream()) {
                 byte[] bytes = new byte[16384]; int count;

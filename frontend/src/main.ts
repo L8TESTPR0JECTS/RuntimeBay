@@ -7,6 +7,7 @@ import { Terminals, TerminalWorkspace } from './terminals';
 import { WorkflowContainers } from './workflow-containers';
 import { Databases } from './databases';
 import { Containers } from './containers';
+import { Hosts } from './hosts';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
 import { adjacentTerminal, workspaceShortcut, WorkspaceCommand } from './shortcuts';
@@ -15,7 +16,7 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Terminals, WorkflowContainers, Databases],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
@@ -147,6 +148,7 @@ class App implements OnDestroy {
     this.view.set('terminal');
     await this.terminals.create(this.projectId());
   }
+  async openHostTerminal(hostId: string) { this.view.set('terminal'); await this.terminals.create(null, hostId); }
   selectTerminal(id: string) { this.terminals.selected.set(id); this.view.set('terminal'); }
   selectProject(id: string | null, switchView = true) {
     if (switchView && this.view() !== 'databases') this.view.set('runtime');

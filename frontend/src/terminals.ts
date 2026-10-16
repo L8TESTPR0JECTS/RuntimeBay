@@ -1,14 +1,15 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, effect, input, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, effect, input, signal, computed } from '@angular/core';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 
-export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null }
+export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null; hostId: string; hostName: string }
 interface Output { data: string; next: number; truncated: boolean; exitCode: number | null }
 
 /** Owns the tab collection; the backend owns shell lifetimes across view changes and reloads. */
 export class TerminalWorkspace {
   readonly tabs = signal<ShellTab[]>([]);
   readonly selected = signal<string | null>(null);
+  readonly selectedTab = computed(() => this.tabs().find(tab => tab.id === this.selected()));
   readonly error = signal('');
   readonly creating = signal(false);
   readonly closing = signal<string[]>([]);
@@ -26,11 +27,11 @@ export class TerminalWorkspace {
     try { const tabs = await this.api<ShellTab[]>(''); this.tabs.update(current => [...tabs, ...current.filter(tab => !tabs.some(existing => existing.id === tab.id))]); }
     catch (error) { if (!this.controller.signal.aborted) this.error.set((error as Error).message); }
   }
-  async create(projectId: string | null): Promise<boolean> {
+  async create(projectId: string | null, hostId?: string): Promise<boolean> {
     if (this.creating()) return false;
     this.creating.set(true); this.error.set('');
     try {
-      const tab = await this.api<ShellTab>('', 'POST', { projectId });
+      const tab = await this.api<ShellTab>('', 'POST', { projectId, ...(hostId ? { hostId } : {}) });
       this.tabs.update(tabs => [...tabs, tab]); this.selected.set(tab.id); return true;
     } catch (error) { this.error.set((error as Error).message); return false; }
     finally { this.creating.set(false); }
@@ -53,7 +54,7 @@ interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; ab
 @Component({
   selector: 'app-terminals', standalone: true,
   template: `<section class="shell-workspace" [hidden]="!visible()">
-    <div class="shell-heading"><div><div class="eyebrow">YOUR SHELL, RIGHT HERE</div><h1>{{ selectedTab()?.name || 'Terminals' }}</h1><p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><span class="local-pill">zsh · interactive</span></div>
+    <div class="shell-heading"><div><div class="eyebrow">YOUR SHELL, RIGHT HERE</div><h1>{{ selectedTab()?.name || 'Terminals' }}</h1><p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div>
     @if (workspace().error()) { <div class="notice" role="alert">{{ workspace().error() }}<button (click)="workspace().error.set('')" aria-label="Dismiss terminal error">×</button></div> }
     <div #surfaces class="shell-surfaces" aria-label="Workspace terminals"></div>
     @if (!selectedTab()) { <div class="shell-empty">Choose a terminal from the sidebar, or press ＋ Terminal to open a shell.</div> }

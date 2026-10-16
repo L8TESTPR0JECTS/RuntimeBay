@@ -32,3 +32,7 @@ All endpoints require the existing launch-specific Bearer token and Host/Origin 
 | `POST /api/terminals/{id}/resize` | Apply integer `columns` (2–1,000) and `rows` (1–1,000) through `TIOCSWINSZ`. |
 
 The frontend serializes input per shell and bounds its pending paste queue to 1 MiB of characters. Output is raw bytes rather than line-oriented text, preserving split UTF-8 and escape sequences. Rendering waits for xterm's write callback before requesting more output. A quiet tab consumes only its bounded backend buffer until first opened. Runtime Bay's private `RUNTIMEBAY_*` environment values are removed before launching shells. Terminal output cannot automatically read or write the clipboard through OSC 52; no clipboard addon is installed.
+
+## Machine terminals
+
+New terminal tabs use Runtime Bay’s preferred machine from **Hosts**. **Terminal** on a machine card explicitly chooses that machine. Remote tabs show the host name and run SSH in the same native PTY, preserving normal interactive input, resizing, and clipboard behavior. Local tabs retain their project working directory; remote tabs start in the remote login environment. Closing a remote tab disconnects SSH; remote jobs may continue depending on their shell/service manager. See [machine hosts](hosts.md).

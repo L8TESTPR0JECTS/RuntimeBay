@@ -39,7 +39,7 @@ static void clean_session(pid_t session, int signal) {
     }
     free(processes);
 }
-int main(void) {
+int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGTERM, stop); signal(SIGINT, stop); signal(SIGHUP, stop);
     int master; struct winsize size = {.ws_row = 24, .ws_col = 80};
@@ -47,7 +47,9 @@ int main(void) {
     if (child < 0) return 71;
     if (!child) {
         signal(SIGPIPE, SIG_DFL); signal(SIGTERM, SIG_DFL); signal(SIGINT, SIG_DFL); signal(SIGHUP, SIG_DFL);
-        execl("/bin/zsh", "zsh", "-il", (char *)NULL); _exit(127);
+        if (argc > 1) execvp(argv[1], &argv[1]);
+        else execl("/bin/zsh", "zsh", "-il", (char *)NULL);
+        _exit(127);
     }
     fcntl(master, F_SETFL, O_NONBLOCK);
     unsigned char pending[65536]; size_t pending_count = 0;
