@@ -1,0 +1,66 @@
+{
+  "project": "https://github.com/devicons/devicon",
+  "version": "v2.17.0",
+  "logos": [
+    {
+      "file": "python.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/python/python-original.svg",
+      "sha256": "71493b4a732f0532b3a03a7a95da3ee11a65766367c8303b901ffbe7bf91a3a2"
+    },
+    {
+      "file": "java.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/java/java-original.svg",
+      "sha256": "7582e518a9c02425f97155e5a3bd39d1a3a7d421b78caf9c8df7443dad3edc5d"
+    },
+    {
+      "file": "nodejs.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/nodejs/nodejs-original.svg",
+      "sha256": "3218687c5ea24a4d4c0a33dc5c287da38c33a72dcfe9382469d7ce4e0bf661fb"
+    },
+    {
+      "file": "npm.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/npm/npm-original-wordmark.svg",
+      "sha256": "9013d7e4c96cb5ef404ec839e4cd1802b4e91dc92280dc20809e56ed5097a932"
+    },
+    {
+      "file": "amazonwebservices.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/amazonwebservices/amazonwebservices-original-wordmark.svg",
+      "sha256": "5b4d8371d79a5c0d3a27ea4e929f772e68d47f7d267496bf9211d5f60fcf8084"
+    },
+    {
+      "file": "git.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/git/git-original.svg",
+      "sha256": "717a57ea97bf7e86de721dab3e68afac66332a10676d5c9abce4ae6a5a9c9983"
+    },
+    {
+      "file": "docker.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/docker/docker-original.svg",
+      "sha256": "3fd830ea69431ed7a0b8d068cd5b34ad3f00a1a78195d50f13ff56713f2462e1"
+    },
+    {
+      "file": "maven.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/maven/maven-original.svg",
+      "sha256": "eb546e1cfd7c0df769193160d2a03e1ec5243ae68eef48c70934a24ece6bbe31"
+    },
+    {
+      "file": "gradle.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/gradle/gradle-original.svg",
+      "sha256": "2caf72625f88b8062f38ee4bed0193f5fe910b6ec73951e239584d55c1bde55a"
+    },
+    {
+      "file": "pnpm.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/pnpm/pnpm-original.svg",
+      "sha256": "92032f79684805a7ee223dfc833a13e903632c1ca259fe39b6e69e0e4b3c38b4"
+    },
+    {
+      "file": "yarn.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/yarn/yarn-original.svg",
+      "sha256": "98f289573da1bdde48ed718babc1fb2ca8bbdeef66b56cd60d64dba72b20d7f6"
+    },
+    {
+      "file": "go.svg",
+      "source": "https://raw.githubusercontent.com/devicons/devicon/v2.17.0/icons/go/go-original.svg",
+      "sha256": "2d4558b96d3ec71d0d922a62668cb2ea5a5d83ed7d4caf6b0479b3266f795a2f"
+    }
+  ]
+}

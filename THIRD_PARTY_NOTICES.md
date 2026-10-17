@@ -4,6 +4,7 @@ Runtime Bay's own source is MIT licensed. The Java backend and Angular interface
 
 | Component | License | Upstream |
 | --- | --- | --- |
+| Devicon v2.17.0 (developer tool logos) | MIT; brand trademarks remain with their owners | https://github.com/devicons/devicon |
 | Angular | MIT | https://github.com/angular/angular |
 | xterm.js 6.0.0 and Fit addon 0.11.0 | MIT | https://github.com/xtermjs/xterm.js |
 | RxJS | Apache-2.0 | https://github.com/ReactiveX/rxjs |
@@ -27,3 +28,5 @@ CloudBeaver Community is downloaded on demand as the official `dbeaver/cloudbeav
 Remote machine connections use the system-provided OpenSSH client (`/usr/bin/ssh`). Runtime Bay does not bundle OpenSSH or copy its source; it uses the user's existing SSH configuration and authentication setup.
 
 Runtime Bay’s SSH password helper is original project code. It calls the user’s system OpenSSH askpass interface; no third-party SSH password utility is bundled.
+
+Developer tool logos are bundled, unmodified, from Devicon v2.17.0 in `frontend/src/assets/tool-logos/`. The original MIT notice is included there as `LICENSE.devicon.txt` and ships with the web assets. `sources.json` records each source URL and SHA-256 checksum. Python's logo also identifies pip; Java's logo also identifies javac. These marks identify the tools and do not imply endorsement. Original SVG colors are preserved in light and dark appearances.

@@ -307,7 +307,7 @@ final class ApiServer implements AutoCloseable {
         if (!file.startsWith(webRoot) || !Files.isRegularFile(file) || !file.toRealPath().startsWith(webRoot))
             throw new ApiException(404, "File not found");
         String name = file.getFileName().toString();
-        String type = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : name.endsWith(".png") ? "image/png" : "application/octet-stream";
+        String type = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".png") ? "image/png" : "application/octet-stream";
         e.getResponseHeaders().set("Content-Type", type + (type.startsWith("text/") ? "; charset=utf-8" : ""));
         e.sendResponseHeaders(200, Files.size(file));
         Files.copy(file, e.getResponseBody());

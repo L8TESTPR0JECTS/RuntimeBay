@@ -21,6 +21,11 @@ export class Hosts implements OnInit, OnDestroy {
   status = signal<Inspection>({ state: 'idle', inventory: null, error: null });
   tab = signal<'tooling' | 'processes'>('tooling');
   filter = signal('');
+  readonly toolLogos: Readonly<Record<string, string>> = Object.freeze({
+    python3: 'python', pip3: 'python', java: 'java', javac: 'java',
+    node: 'nodejs', npm: 'npm', aws: 'amazonwebservices', git: 'git',
+    docker: 'docker', mvn: 'maven', gradle: 'gradle', pnpm: 'pnpm', yarn: 'yarn', go: 'go'
+  });
   tools = computed(() => this.status().inventory?.tools.filter(tool => `${tool.name} ${tool.version} ${tool.path}`.toLowerCase().includes(this.filter().toLowerCase())) || []);
   available = computed(() => this.status().inventory?.tools.filter(tool => tool.state === 'available').length || 0);
   error = signal('');

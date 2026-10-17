@@ -2,3 +2,9 @@
 
 .machine-modal .machine-forget-password { display: flex; flex-direction: row; align-items: center; gap: 10px; text-transform: none; letter-spacing: normal; }
 .machine-modal .machine-forget-password input { width: auto; margin: 0; }
+
+/* Preserve each vendor's SVG colors in every appearance and palette. */
+.machine-tool-identity { display: flex; align-items: center; gap: 12px; }
+.machine-tool-logo { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 10px; background: #fafbf8; border: 1px solid #e2e6dc; }
+.machine-tool-logo img { display: block; width: 28px; height: 28px; object-fit: contain; }
+.machine-tool-label { min-width: 0; }
