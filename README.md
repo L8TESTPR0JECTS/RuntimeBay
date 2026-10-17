@@ -199,6 +199,8 @@ Current boundaries include:
 - Docker standalone engines; Compose labels are displayed, but stack deployment, Kubernetes/Swarm, container exec, registry publishing, and volume/network deletion are future work.
 - macOS only; no Windows build, auto-updater, telemetry, or published website.
 
+The [proposed backlog](notes/backlog.md) organizes the next work into epics and stories with acceptance criteria, dependencies, and delivery slices. A [CSV planning snapshot](notes/backlog.csv) is available for Jira handoff; these are proposals, not scheduled releases or existing Jira issues.
+
 ## Contributing
 
 Keep runtime orchestration in Java, interface behavior in Angular, and the native macOS host small. New integrations should reuse the project and runtime model. Run `npm run check` before proposing a change, and add meaningful coverage when changing process ownership, persistence, connection targeting, or the API security boundary.
