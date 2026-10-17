@@ -30,7 +30,7 @@ export class Hosts implements OnInit, OnDestroy {
   modal = signal<'host' | 'remove' | null>(null);
   editing = signal<Machine | null>(null);
   removing = signal<Machine | null>(null);
-  form = { name: '', address: '', user: '', port: null as number | null };
+  form = { name: '', address: '', user: '', port: null as number | null, password: '', clearPassword: false };
   private controller = new AbortController();
   private revision = 0;
   private timer?: ReturnType<typeof setInterval>;
@@ -85,16 +85,16 @@ export class Hosts implements OnInit, OnDestroy {
   back() { this.revision++; this.selectedId.set(null); this.error.set(''); }
   open(host?: Machine) {
     this.previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    this.editing.set(host || null); this.form = host ? { name: host.name, address: host.address, user: host.user, port: host.port } : { name: '', address: '', user: '', port: null };
+    this.editing.set(host || null); this.form = host ? { name: host.name, address: host.address, user: host.user, port: host.port, password: '', clearPassword: false } : { name: '', address: '', user: '', port: null, password: '', clearPassword: false };
     this.formError.set(''); this.modal.set('host'); setTimeout(() => document.querySelector<HTMLInputElement>('.machine-modal input')?.focus(), 0);
   }
-  close() { if (this.saving()) return; this.modal.set(null); setTimeout(() => this.previousFocus?.focus(), 0); }
+  close() { if (this.saving()) return; this.form.password = ''; this.modal.set(null); setTimeout(() => this.previousFocus?.focus(), 0); }
   async save() {
     if (this.saving()) return;
     this.saving.set(true); this.formError.set('');
     try {
       const edited = this.editing(); await this.tasks.run('Saving host…', () => this.api(edited ? '/' + edited.id : '', edited ? 'PUT' : 'POST', { ...this.form, name: this.form.name.trim(), address: this.form.address.trim(), user: this.form.user.trim() }));
-      await this.load(); this.modal.set(null);
+      this.form.password = ''; await this.load(); this.modal.set(null);
       if (edited?.id === this.selectedId()) { this.status.set({ state: 'idle', inventory: null, error: null }); void this.inspect(); }
     } catch (e) { this.formError.set((e as Error).message); }
     finally { this.saving.set(false); }
@@ -111,5 +111,5 @@ export class Hosts implements OnInit, OnDestroy {
     catch (e) { this.formError.set((e as Error).message); }
     finally { this.saving.set(false); }
   }
-  ngOnDestroy() { this.controller.abort(); this.tasks.close(); clearInterval(this.timer); window.removeEventListener('keydown', this.keyListener); }
+  ngOnDestroy() { this.form.password = ''; this.controller.abort(); this.tasks.close(); clearInterval(this.timer); window.removeEventListener('keydown', this.keyListener); }
 }

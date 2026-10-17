@@ -25,3 +25,5 @@ GSAP is distributed under its own Standard “No Charge” license, not Runtime 
 CloudBeaver Community is downloaded on demand as the official `dbeaver/cloudbeaver:26.2.2` image, pinned to manifest digest `sha256:7298c59289e9519d8913083c85f3ceb475aa12db0f58e87b6491445a9b298d2c`. Its upstream branding and notices are retained. Runtime Bay does not bundle or relicense its image, source, JDBC drivers, or transitive dependencies. Source and license are available from the upstream project and image distribution; see [Apache-2.0](https://github.com/dbeaver/cloudbeaver/blob/devel/LICENSE).
 
 Remote machine connections use the system-provided OpenSSH client (`/usr/bin/ssh`). Runtime Bay does not bundle OpenSSH or copy its source; it uses the user's existing SSH configuration and authentication setup.
+
+Runtime Bay’s SSH password helper is original project code. It calls the user’s system OpenSSH askpass interface; no third-party SSH password utility is bundled.

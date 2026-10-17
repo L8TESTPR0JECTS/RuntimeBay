@@ -73,7 +73,7 @@ final class HostRegistry {
         if (!interactive) args.addAll(List.of("-o", "BatchMode=yes"));
         if (controls != null) {
             String identity = host.id().replaceAll("[^A-Za-z0-9]", "");
-            args.addAll(List.of("-o", "ControlMaster=auto", "-o", "ControlPersist=no", "-o", "ControlPath=" + controls.resolve(identity.substring(0, Math.min(16, identity.length())) + "-%C")));
+            args.addAll(List.of("-o", "ControlMaster=auto", "-o", "ControlPersist=no", "-o", "ControlPath=" + controls.resolve(identity.substring(0, Math.min(8, identity.length())) + "-%C")));
         }
         if (host.port() != null) args.addAll(List.of("-p", host.port().toString()));
         args.add("--"); args.add((host.user().isEmpty() ? "" : host.user() + "@") + host.address());

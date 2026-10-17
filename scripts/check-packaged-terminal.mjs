@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 const launcher = join(process.argv[2], 'Contents/Resources/runtimebay-terminal');
 // Keep stdin open: closing it is the supervisor's intentional shutdown signal.
-async function check(command, expected) {
+async function check(command, expected, expectedCode = 0) {
   const child = spawn(launcher, command, { stdio: ['pipe', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', bytes => { output += bytes; });
@@ -14,7 +14,7 @@ async function check(command, expected) {
     await new Promise((resolve, reject) => {
       child.once('error', reject);
       child.once('close', (code, signal) => {
-        if (code === 0 && expected.test(output)) resolve();
+        if (code === expectedCode && expected.test(output)) resolve();
         else reject(new Error(`Packaged terminal failed (${code ?? signal}): ${output}`));
       });
     });
@@ -23,4 +23,5 @@ async function check(command, expected) {
 assert.ok(process.argv[2], 'Supply the packaged app path');
 await check(['/usr/bin/printf', 'RUNTIMEBAY_PACKAGED_PTY_OK'], /RUNTIMEBAY_PACKAGED_PTY_OK/);
 await check(['/usr/bin/ssh', '-V'], /OpenSSH_/);
-console.log('Packaged PTY and SSH launch checks passed.');
+await check([join(process.argv[2], 'Contents/Resources/runtimebay-askpass')], /^$/, 1);
+console.log('Packaged PTY, SSH, and askpass launch checks passed.');

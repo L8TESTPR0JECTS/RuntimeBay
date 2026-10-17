@@ -22,6 +22,7 @@ final class ApiServer implements AutoCloseable {
     private final DatabaseWorkspace databases;
     private final MachineHosts machineHosts;
     private final Path hostSshControls;
+    private final HostPasswords hostPasswords;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -34,11 +35,12 @@ final class ApiServer implements AutoCloseable {
         this.store = store; this.runtimes = runtimes; this.webRoot = webRoot.toRealPath(); this.token = token; this.docker = docker;
         appearance = new AppearanceStore(store.directory());
         workflowContainers = new WorkflowContainers(store, docker);
-        hostSshControls = Files.createTempDirectory(Path.of("/tmp"), "runtimebay-ssh-");
+        hostSshControls = Files.createTempDirectory(Path.of("/tmp"), "rb-");
         Files.setPosixFilePermissions(hostSshControls, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
-        machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls));
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
-        terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"));
+        hostPasswords = new HostPasswords(hostSshControls, supervisor.resolveSibling("runtimebay-askpass"));
+        machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls, hostPasswords));
+        terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"), hostPasswords);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
         databases = new DatabaseWorkspace(store, new CloudBeaverRuntime(docker), "http://127.0.0.1:" + port());
         server.setExecutor(requests);
@@ -156,9 +158,16 @@ final class ApiServer implements AutoCloseable {
                 if (!number.isJsonPrimitive() || !number.getAsJsonPrimitive().isNumber() || !number.getAsString().matches("[0-9]{1,5}")) throw new ApiException(400, "Enter a whole-number SSH port");
                 port = number.getAsInt();
             }
-            json(e, parts.length == 2 ? 201 : 200, machineHosts.save(parts.length == 2 ? null : parts[2], string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port)); return;
+            String password = string(value, "password"); HostPasswords.validate(password);
+            String id = parts.length == 2 ? null : parts[2];
+            var previous = id == null ? null : machineHosts.get(id);
+            var saved = machineHosts.save(id, string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port);
+            if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.clear(saved.id());
+            if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.clear(saved.id());
+            if (password != null && !password.isEmpty()) hostPasswords.set(saved.id(), password);
+            json(e, parts.length == 2 ? 201 : 200, saved); return;
         }
-        if (parts.length == 3 && method.equals("DELETE")) { machineHosts.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 3 && method.equals("DELETE")) { machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];
             if (parts[3].equals("default") && method.equals("POST")) { body(e); machineHosts.makeDefault(id); json(e, 200, machineHosts.view()); return; }
@@ -317,6 +326,7 @@ final class ApiServer implements AutoCloseable {
     }
     @Override public void close() {
         server.stop(0); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
+        hostPasswords.close();
         try (DirectoryStream<Path> sockets = Files.newDirectoryStream(hostSshControls)) { for (Path socket : sockets) Files.deleteIfExists(socket); }
         catch (IOException e) { System.err.println("Could not clean SSH control sockets"); }
         try { Files.deleteIfExists(hostSshControls); } catch (IOException e) { System.err.println("Could not remove SSH session directory"); }

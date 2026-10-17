@@ -48,9 +48,11 @@ final class HostTools implements AutoCloseable {
     private final ExecutorService readers = Executors.newVirtualThreadPerTaskExecutor();
     private final Runner runner;
     private Path controls;
+    private HostPasswords passwords;
     private volatile boolean closed;
-    HostTools() { runner = this::run; }
+    HostTools() { runner = null; }
     HostTools(Path controls) { this(); this.controls = controls; }
+    HostTools(Path controls, HostPasswords passwords) { this(controls); this.passwords = passwords; }
     HostTools(Runner runner) { this.runner = runner; }
     Inventory inspect(HostRegistry.Host host) throws Exception {
         if (closed) throw new ApiException(503, "Host inspection is shutting down");
@@ -60,8 +62,8 @@ final class HostTools implements AutoCloseable {
             args = new ArrayList<>(HostRegistry.sshArguments(host, false, controls));
             args.add("\"${SHELL:-/bin/sh}\" -lic " + quote(SCRIPT));
         }
-        Result result = runner.run(args);
-        if (result.exitCode() != 0) throw new ApiException(502, host.local() ? "Could not inspect this Mac: " + tail(result.output()) : "SSH inspection failed. Open this host's terminal, sign in, keep it open, and retry inspection; SSH keys or an agent work too. Verify unknown host keys in your normal Terminal first. " + tail(result.output()));
+        Result result = runner == null ? run(args, host.id()) : runner.run(args);
+        if (result.exitCode() != 0) throw new ApiException(502, host.local() ? "Could not inspect this Mac: " + tail(result.output()) : "SSH inspection failed. Enter your password in Edit host and retry, or sign in through this host's terminal and keep it open. SSH keys or an agent work too. Verify unknown host keys in your normal Terminal first. " + tail(result.output()));
         return parse(host.id(), result.output());
     }
     static Inventory parse(String hostId, String output) {
@@ -77,11 +79,12 @@ final class HostTools implements AutoCloseable {
         if (hostname.isBlank() || os.isBlank() || tools.size() != TOOLS.size()) throw new ApiException(502, "The host returned an incomplete inventory. Check its login shell and try again.");
         return new Inventory(hostId, Instant.now().toString(), hostname, os, architecture, List.copyOf(tools.values()), List.copyOf(processes));
     }
-    private Result run(List<String> arguments) throws Exception {
+    private Result run(List<String> arguments, String hostId) throws Exception {
         if (closed) throw new ApiException(503, "Host inspection is shutting down");
         ProcessBuilder builder = new ProcessBuilder(arguments).redirectErrorStream(true);
         builder.environment().keySet().removeIf(k -> k.startsWith("RUNTIMEBAY_"));
         builder.environment().put("PATH", "/opt/homebrew/bin:/usr/local/bin:" + builder.environment().getOrDefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"));
+        if (passwords != null && !hostId.equals("local")) passwords.configure(builder, hostId);
         Process process = builder.start(); processes.add(process);
         Future<String> output = null;
         try {

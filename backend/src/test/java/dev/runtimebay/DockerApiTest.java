@@ -59,6 +59,21 @@ class DockerApiTest {
         var inventory = client.send(HttpRequest.newBuilder(URI.create(base + "/api/hosts/" + id + "/inventory")).header("Authorization", "Bearer " + token).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, inventory.statusCode()); assertTrue(inventory.body().contains("idle"));
     }
+    @Test void acceptsSessionPasswordsWithoutReturningOrPersistingThem() throws Exception {
+        String base = "http://127.0.0.1:" + server.port() + "/api/hosts";
+        String secret = "api-password-fixture-unique";
+        String definition = "{\"name\":\"Password host\",\"address\":\"fixture\",\"password\":\"" + secret + "\"}";
+        var added = client.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(201, added.statusCode()); assertFalse(added.body().contains(secret)); assertFalse(added.body().contains("password"));
+        assertFalse(Files.readString(store.directory().resolve("hosts.json")).contains(secret));
+        String id = JsonParser.parseString(added.body()).getAsJsonObject().get("id").getAsString();
+        var listed = client.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization", "Bearer " + token).build(), HttpResponse.BodyHandlers.ofString());
+        assertFalse(listed.body().contains(secret));
+        var invalid = client.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(definition.replace(secret, "a\\nb"))).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(400, invalid.statusCode()); assertEquals(2, new HostRegistry(store.directory()).view().hosts().size());
+        var cleared = client.send(HttpRequest.newBuilder(URI.create(base + "/" + id)).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString("{\"name\":\"Password host\",\"address\":\"fixture\",\"clearPassword\":true}")).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, cleared.statusCode()); assertFalse(cleared.body().contains(secret));
+    }
     @Test void usesEndpointSnapshotAndValidatesContainerIdsAndPorts() throws Exception {
         String query = "?endpoint=" + URLEncoder.encode(DockerServiceTest.REMOTE, StandardCharsets.UTF_8);
         var overview = get("/environments/remote/overview" + query, true);

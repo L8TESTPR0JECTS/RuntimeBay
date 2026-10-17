@@ -12,11 +12,13 @@ final class TerminalManager implements AutoCloseable {
     record Output(String data, long next, boolean truncated, Integer exitCode) {}
     private final ProjectStore projects;
     private final Path launcher;
+    private final HostPasswords passwords;
     private final LinkedHashMap<String, Shell> shells = new LinkedHashMap<>();
     private final ExecutorService readers = Executors.newVirtualThreadPerTaskExecutor();
     private int number;
     private boolean closed;
-    TerminalManager(ProjectStore projects, Path launcher) { this.projects = projects; this.launcher = launcher; }
+    TerminalManager(ProjectStore projects, Path launcher) { this(projects, launcher, null); }
+    TerminalManager(ProjectStore projects, Path launcher, HostPasswords passwords) { this.projects = projects; this.launcher = launcher; this.passwords = passwords; }
     synchronized List<View> list() { return shells.values().stream().map(Shell::view).toList(); }
     synchronized View create(String projectId) throws IOException {
         Path directory = projectId == null || projectId.isBlank() ? Path.of(System.getProperty("user.home")) : Path.of(projects.project(projectId).path());
@@ -37,6 +39,7 @@ final class TerminalManager implements AutoCloseable {
         ProcessBuilder builder = new ProcessBuilder(arguments).directory(directory.toFile());
         builder.environment().keySet().removeIf(key -> key.startsWith("RUNTIMEBAY_"));
         builder.environment().put("TERM", "xterm-256color"); builder.environment().put("COLORTERM", "truecolor");
+        if (passwords != null && !hostId.equals("local")) passwords.configure(builder, hostId);
         // Never leave an unread stderr pipe behind; diagnostics do not contain shell output.
         builder.redirectError(ProcessBuilder.Redirect.DISCARD);
         Shell shell = new Shell(UUID.randomUUID().toString(), (hostId.equals("local") ? "" : hostName + " · ") + "Terminal " + (++number), hostId.equals("local") ? directory.toString() : command.getLast(), builder.start(), hostId, hostName);

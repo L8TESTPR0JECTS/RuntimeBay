@@ -11,7 +11,7 @@ runtimebay_app="$runtimebay_stage/Runtime Bay.app"
 trap 'rm -rf "$runtimebay_stage"' EXIT
 mkdir -p "$runtimebay_app/Contents/MacOS" "$runtimebay_app/Contents/Resources"
 cp .build/RuntimeBay "$runtimebay_app/Contents/MacOS/RuntimeBay"
-cp .build/runtimebay-launcher .build/runtimebay-terminal backend/target/runtimebay-backend.jar "$runtimebay_app/Contents/Resources/"
+cp .build/runtimebay-launcher .build/runtimebay-terminal .build/runtimebay-askpass backend/target/runtimebay-backend.jar "$runtimebay_app/Contents/Resources/"
 cp .build/loading-startup.js .build/loading.css "$runtimebay_app/Contents/Resources/"
 cp .build/RuntimeBay.icns "$runtimebay_app/Contents/Resources/"
 cp frontend/src/assets/runtime-bay.png "$runtimebay_app/Contents/Resources/"
@@ -37,7 +37,7 @@ cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIconFile</key><string>RuntimeBay.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.5.0</string>
-<key>CFBundleVersion</key><string>11</string>
+<key>CFBundleVersion</key><string>12</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSHumanReadableCopyright</key><string>Runtime Bay contributors</string>
@@ -46,6 +46,7 @@ PLIST
 # Resources are not a nested-code location; sign executable helpers explicitly.
 codesign --force --sign - "$runtimebay_app/Contents/Resources/runtimebay-launcher"
 codesign --force --sign - "$runtimebay_app/Contents/Resources/runtimebay-terminal"
+codesign --force --sign - "$runtimebay_app/Contents/Resources/runtimebay-askpass"
 codesign --force --deep --sign - "$runtimebay_app"
 codesign --verify --deep --strict "$runtimebay_app"
 node scripts/check-packaged-terminal.mjs "$runtimebay_app"
