@@ -6,7 +6,7 @@
 
 ### A home for everything running.
 
-**A macOS workspace for developers who want a clearer view of their services, containers, and machines.**
+**A macOS application for understanding and operating your development runtimes: services, containers, databases, terminals, and machines.**
 
 Start a project. Follow its output. Find the port. Restart the right process. Keep your flow.
 
@@ -63,7 +63,7 @@ Connect Docker   → view its containers       → inspect, create, and control 
 
 **A workflow combines a project’s services and linked container dependencies.** Use **Link container** in the project view to select Kafka, a database, or another existing container from a Docker host. Links persist across launches; unlinking keeps the container intact. Containers created with a workflow project selected are linked automatically. Service controls and container controls remain explicit.
 
-**Hosts represents machines.** Add Helfer or another physical/virtual node by hostname, IP address, or SSH configuration alias. **View host** inspects its login-shell tools and up to 100 process names/PIDs; **Open terminal** starts an interactive shell on that specific machine. Python 3, pip, Java, javac, Node.js, npm, AWS CLI, Git, Docker CLI, Maven, Gradle, pnpm, Yarn, and Go have individual availability/version results. Hosts work without Docker. See the [machine-host guide](docs/hosts.md).
+**Hosts represents machines.** Add Helfer or another physical/virtual node by hostname, IP address, or SSH configuration alias. **View host** inspects its login-shell tools and up to 100 process names/PIDs; **Open terminal** starts an interactive shell on that specific machine. Python 3, pip, Java, javac, Node.js, npm, AWS CLI, Git, Docker CLI, Maven, Gradle, pnpm, Yarn, and Go have individual availability/version results. Tool rows show their original brand logos, bundled for offline use. Hosts work without Docker. Optional SSH passwords are kept in memory for the app session and can be entered in Add/Edit Host; existing keys and SSH agents work too. See the [machine-host guide](docs/hosts.md).
 
 **Containers owns Docker connections.** Its connection selector and **Docker connections** page manage local or remote Docker engines. A machine’s identity and preferred-host setting are separate from Docker context IDs and Docker’s active context.
 
@@ -150,7 +150,9 @@ Start both services. Visit `http://127.0.0.1:4310/health` to generate output. Se
 
 ### Containers and remote machines
 
-Open **Hosts** to discover Docker contexts or add an SSH address such as `ssh://developer@dev.example.com:22`. Verify SSH authentication and the host key through your normal Terminal workflow first. Existing verified mutual-TLS contexts are supported; unauthenticated TCP connections are rejected.
+Open **Hosts** to add a machine by hostname, IP address, or SSH alias, with optional user, port, and session password. For example, add `dev.example.com` with user `developer` and port `22`. Verify unknown host keys through your normal Terminal first. Host inspection and terminals are independent of Docker.
+
+Open **Containers → Docker connections** to discover Docker contexts or add a Docker SSH endpoint such as `ssh://developer@dev.example.com:22`. Existing verified mutual-TLS contexts are supported; unauthenticated TCP connections are rejected.
 
 Open **Containers** to choose the target engine and manage its workloads. New containers require a cached image and are created stopped. TCP publishing binds to `127.0.0.1` on the selected host. For remote access, use an SSH port forward as described in the [container guide](docs/containers.md).
 
@@ -168,6 +170,7 @@ Private image pulls reuse Docker authentication. Sign in with `docker login <reg
 | [`examples/`](examples/) | Small API and worker for trying the runtime workflow. |
 | [`docs/`](docs/) | Architecture, current container behavior, appearance, and integration research. |
 | [`notes/`](notes/) | Product ideas and early thinking, including portable development environments. |
+| [`licenses/`](licenses/) | Preserved upstream license texts and attribution; copied into macOS packages. |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Dependency licenses and distribution notices. |
 
 ## Engineering character
@@ -184,7 +187,9 @@ Validation covers real process ownership and shutdown, independent PTY shells, i
 
 **v0.5 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, an embedded database GUI, container management, independent machine hosts with SSH terminals and tool/process inspection, and customization are implemented.
 
-The broader direction is to connect Git, coding agents, API collections, debugger sessions, and deployments to the same projects and runs. Those integrations are planned and are not included in the current application. See [integration research](docs/integrations.md).
+**The product direction is a persistent, application-aware workflow across multiple hosts.** A workflow should combine local services, a database on one machine, Kafka on another, and their terminals, logs, and protocol consoles. A host is a resource target, rather than the boundary of the workflow. Restoring that complete operational layout, modeling environments, and supervising remote workflow services are planned; current service commands still run locally, while container links can already target different Docker connections.
+
+AI-enhanced tooling is planned to discover how an existing application is configured and help model a new application from the ground up. Git, coding agents, API collections, debugger sessions, and deployments also remain future integrations. These capabilities are not included in the current application. See [integration research](docs/integrations.md).
 
 Current boundaries include:
 
@@ -204,17 +209,29 @@ Issues and pull requests are welcome in [RuntimeBay](https://github.com/L8TESTPR
 
 **Runtime Bay's original source is licensed under the [MIT License](LICENSE).** Copyright © 2026 Runtime Bay contributors.
 
-Third-party software retains its own license:
+Third-party software and artwork retain their own licenses; Runtime Bay's MIT license does not relicense them.
 
-| Component | License |
-| --- | --- |
-| Angular | MIT |
-| GSAP | [Standard “No Charge” GSAP License](https://gsap.com/standard-license/) |
-| RxJS | Apache-2.0 |
-| tslib | 0BSD |
-| Gson and Error Prone annotations | Apache-2.0 |
-| Bundled OpenJDK runtime | GPL-2.0 with the Classpath Exception, plus its bundled notices |
+| Bundled component | Version | Purpose | License |
+| --- | --- | --- | --- |
+| Angular (`core`, `common`, `forms`, `platform-browser`) | 21.2.25 | Application interface | [MIT](licenses/Angular-MIT.txt) |
+| xterm.js | 6.0.0 | Interactive terminal rendering | [MIT](licenses/xterm-MIT.txt) |
+| xterm Fit addon | 0.11.0 | Terminal sizing | [MIT](licenses/xterm-fit-MIT.txt) |
+| RxJS | 7.8.2 | Frontend reactive utilities | [Apache-2.0](licenses/RxJS-Apache-2.0.txt) |
+| tslib | 2.8.1 | TypeScript runtime helpers | [0BSD](licenses/tslib-0BSD.txt) |
+| GSAP | 3.15.0 | Breathing loader and UI animation | [Standard “No Charge” GSAP License](licenses/GSAP-Standard-License.txt), a custom license |
+| Gson | 2.13.2 | Backend JSON handling | [Apache-2.0](licenses/Gson-Apache-2.0.txt) |
+| Error Prone annotations | 2.41.0 | Gson's transitive annotation dependency | [Apache-2.0](licenses/ErrorProne-Apache-2.0.txt) |
+| Devicon artwork | v2.17.0 | Original-color developer tool logos | [MIT](licenses/Devicon-MIT.txt); brand trademarks remain with their owners |
+| OpenJDK Java runtime | Java 25; selected by the package build | Runs the backend without a separate Java installation | GPL-2.0 with the Classpath Exception and module-specific notices, retained under `Resources/jre/legal/` |
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for upstream references and distribution details. Packaging includes Runtime Bay's license, extracted frontend licenses, Apache license text, and the Java runtime's legal notices.
+GSAP is free of charge under its own terms; it is not an MIT/Apache dependency. Its original notice and the upstream license snapshot are retained in [licenses/](licenses/).
 
-Portainer inspired the container/environment workflow; its code and agents are not bundled. Docker CLI is optional and installed by the user. Planned agent and API-testing tools are not shipped in this version.
+| External integration | Distribution | License / ownership |
+| --- | --- | --- |
+| CloudBeaver Community 26.2.2 | Optional official container image, downloaded on demand and pinned by digest | [Apache-2.0](https://github.com/dbeaver/cloudbeaver/blob/devel/LICENSE); drivers and image dependencies retain their own notices |
+| Docker CLI and engine | User-installed; not bundled | Docker CLI is [Apache-2.0](https://github.com/docker/cli/blob/master/LICENSE); the chosen engine or Docker Desktop distribution has its own terms |
+| OpenSSH | macOS system client; not bundled | [Upstream OpenSSH notices](https://www.openssh.com/txt/LICENCE) and the system distribution's notices |
+
+The native app uses macOS-provided AppKit, WebKit, Security, and system libraries. Swift/C code for Runtime Bay's native host, supervisors, and password helper is original project code. Portainer inspired the container workflow; its source and agents are not bundled. T3 Code, Codex, Claude, Bruno, and Postman are integration candidates, not shipped components.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the inventory, build/test tooling, upstream sources, and package locations. The package includes Runtime Bay's license, the preserved license directory, extracted frontend notices, Devicon attribution, and the selected Java runtime's legal notices and build metadata.
