@@ -2,7 +2,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash scripts/build.sh
-runtimebay_app="${RUNTIMEBAY_PACKAGE_PATH:-$PWD/dist/Runtime Bay.app}"
+runtimebay_destination="${RUNTIMEBAY_PACKAGE_PATH:-$PWD/dist/Runtime Bay.app}"
+mkdir -p "$(dirname "$runtimebay_destination")"
+# Never overwrite a mapped Mach-O in place: macOS can retain its old signature
+# validation for that inode and kill newly launched helpers with SIGKILL.
+runtimebay_stage="$(mktemp -d "$(dirname "$runtimebay_destination")/.runtimebay-package.XXXXXX")"
+runtimebay_app="$runtimebay_stage/Runtime Bay.app"
+trap 'rm -rf "$runtimebay_stage"' EXIT
 mkdir -p "$runtimebay_app/Contents/MacOS" "$runtimebay_app/Contents/Resources"
 cp .build/RuntimeBay "$runtimebay_app/Contents/MacOS/RuntimeBay"
 cp .build/runtimebay-launcher .build/runtimebay-terminal backend/target/runtimebay-backend.jar "$runtimebay_app/Contents/Resources/"
@@ -31,12 +37,24 @@ cat > "$runtimebay_app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIconFile</key><string>RuntimeBay.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.5.0</string>
-<key>CFBundleVersion</key><string>10</string>
+<key>CFBundleVersion</key><string>11</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSHumanReadableCopyright</key><string>Runtime Bay contributors</string>
 </dict></plist>
 PLIST
+# Resources are not a nested-code location; sign executable helpers explicitly.
+codesign --force --sign - "$runtimebay_app/Contents/Resources/runtimebay-launcher"
+codesign --force --sign - "$runtimebay_app/Contents/Resources/runtimebay-terminal"
 codesign --force --deep --sign - "$runtimebay_app"
+codesign --verify --deep --strict "$runtimebay_app"
+node scripts/check-packaged-terminal.mjs "$runtimebay_app"
+if [ -e "$runtimebay_destination" ]; then mv "$runtimebay_destination" "$runtimebay_stage/previous.app"; fi
+if ! mv "$runtimebay_app" "$runtimebay_destination"; then
+  if [ -e "$runtimebay_stage/previous.app" ]; then mv "$runtimebay_stage/previous.app" "$runtimebay_destination"; fi
+  exit 1
+fi
+runtimebay_app="$runtimebay_destination"
+node scripts/check-packaged-terminal.mjs "$runtimebay_app"
 ditto -c -k --sequesterRsrc --keepParent "$runtimebay_app" "$PWD/dist/Runtime-Bay-macos-$(uname -m).zip"
 printf 'Built %s\n' "$runtimebay_app"
