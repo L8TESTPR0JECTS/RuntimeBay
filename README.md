@@ -199,7 +199,7 @@ Current boundaries include:
 - Docker standalone engines; Compose labels are displayed, but stack deployment, Kubernetes/Swarm, container exec, registry publishing, and volume/network deletion are future work.
 - macOS only; no Windows build, auto-updater, telemetry, or published website.
 
-The [proposed backlog](notes/backlog.md) organizes the next work into epics and stories with acceptance criteria, dependencies, and delivery slices. A [CSV planning snapshot](notes/backlog.csv) is available for Jira handoff; these are proposals, not scheduled releases or existing Jira issues.
+The [GitHub roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) tracks the next work across seven epics and 22 stories. The [issue map](notes/github-issues.md) connects stable planning IDs to live issues, proposed priorities, milestones, and blockers; detailed outcomes and acceptance criteria live in the [backlog proposal](notes/backlog.md). Everything remains proposed until refined and moved from Backlog. A [CSV planning snapshot](notes/backlog.csv) is available for offline review or optional Jira import.
 
 ## Contributing
 

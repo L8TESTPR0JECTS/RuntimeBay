@@ -2,8 +2,10 @@
 
 A place for Markdown notes, product ideas, and early thinking before they become implementation plans.
 
-- [Proposed backlog](backlog.md) — prioritized epics and stories, acceptance criteria, dependencies, and delivery slices.
-- [Jira planning snapshot](backlog.csv) — the same proposal in CSV form; real Jira issue keys and links are assigned during import.
+- [GitHub roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) — live status board for the Runtime Bay plan.
+- [Issue map](github-issues.md) — planning IDs, live issue links, priorities, milestones, and blockers.
+- [Backlog proposal](backlog.md) — product rationale and acceptance criteria for each epic and story.
+- [CSV planning snapshot](backlog.csv) — offline copy for review or optional Jira import; GitHub is the active tracker.
 - [Ideas](ideas.md) — possible future capabilities and the problems they could solve.
 
 Ideas recorded here are proposals, not implemented features or commitments to a release.

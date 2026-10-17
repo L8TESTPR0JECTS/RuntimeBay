@@ -1,8 +1,11 @@
 # Runtime Bay — proposed product backlog
 
 Created: 2026-10-16  
-Status: **Proposed for review; no Jira issues have been created.**  
+Status: **Tracked in GitHub Issues and the Runtime Bay Product Roadmap.** The acceptance criteria remain proposals until refined and moved to Ready.
+
 Baseline: [`e1119db`](https://github.com/L8TESTPR0JECTS/RuntimeBay/commit/e1119db) — README and licensing audit complete.
+
+Live tracking: [Runtime Bay — Product Roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) · [GitHub issues](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues) · [Planning ID to issue map](github-issues.md).
 
 ## Product intent
 
@@ -32,7 +35,7 @@ This is a proposed sequence, not release dates or sprint commitments. Start RB-S
 
 ## Planning conventions
 
-- `RB-E##` and `RB-S##` are stable repository planning IDs, **not Jira keys**. All items are proposed and unassigned.
+- `RB-E##` and `RB-S##` are stable repository planning IDs, not GitHub issue numbers. Use [github-issues.md](github-issues.md) to find each live issue. All items remain proposed and unassigned until refined.
 - High/Medium/Low express relative priority, not a committed delivery date. Dependencies identify implementation prerequisites, not just reading order.
 - Each story needs a demonstration against its acceptance criteria, appropriate automated checks for changed runtime/security behavior, updated documentation, and dependency/license notices when adding third-party tooling.
 - Failure states, target identity, bounded output, accessibility, and theme behavior are part of done where relevant. An unavailable target must never cause a fallback mutation on another machine.
@@ -42,40 +45,40 @@ This is a proposed sequence, not release dates or sprint commitments. Start RB-S
 
 | Planning ID | Epic | Outcome |
 | --- | --- | --- |
-| RB-E01 | Application model and shared definitions | Model one application with resources distributed across hosts, and share its intended setup without secrets. |
-| RB-E02 | Persistent workflow cockpit | Bring an application’s runtime views together and restore useful context without replaying execution. |
-| RB-E03 | Distributed runtime operations | Start, observe, and stop the correct owned runtime on the correct machine, with explicit failure handling. |
-| RB-E04 | Credentials and environment protection | Keep credentials outside shared definitions and make the effective target clear before mutations. |
-| RB-E05 | AI-assisted application setup | Discover existing application setups and propose new ones through a reviewable, provider-independent flow. |
-| RB-E06 | Protocol consoles and troubleshooting | Give data services purposeful tools and correlate operational events across the application. |
-| RB-E07 | Environment portability and beta delivery | Capture reproducible tooling requirements and prepare a tested macOS beta distribution. |
+| [RB-E01](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/1) | Application model and shared definitions | Model one application with resources distributed across hosts, and share its intended setup without secrets. |
+| [RB-E02](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/2) | Persistent workflow cockpit | Bring an application’s runtime views together and restore useful context without replaying execution. |
+| [RB-E03](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/3) | Distributed runtime operations | Start, observe, and stop the correct owned runtime on the correct machine, with explicit failure handling. |
+| [RB-E04](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/4) | Credentials and environment protection | Keep credentials outside shared definitions and make the effective target clear before mutations. |
+| [RB-E05](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/5) | AI-assisted application setup | Discover existing application setups and propose new ones through a reviewable, provider-independent flow. |
+| [RB-E06](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/6) | Protocol consoles and troubleshooting | Give data services purposeful tools and correlate operational events across the application. |
+| [RB-E07](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/7) | Environment portability and beta delivery | Capture reproducible tooling requirements and prepare a tested macOS beta distribution. |
 
 ## Story index
 
 | ID | Story | Epic | Priority | Slice |
 | --- | --- | --- | --- | --- |
-| [RB-S01](#rb-s01) | Introduce a workflow resource model | RB-E01 | High | M1 |
-| [RB-S02](#rb-s02) | Bind resources per environment | RB-E01 | High | M1 |
-| [RB-S03](#rb-s03) | Attach and reconcile existing application resources | RB-E01 | High | M1 |
-| [RB-S04](#rb-s04) | Build a multi-host workflow cockpit | RB-E02 | High | M1 |
-| [RB-S05](#rb-s05) | Restore workflow layout and operational context | RB-E02 | High | M1 |
-| [RB-S06](#rb-s06) | Import and export a shareable workflow definition | RB-E01 | High | M1 |
-| [RB-S07](#rb-s07) | Manage credential references separately from workflows | RB-E04 | High | M1 |
-| [RB-S08](#rb-s08) | Choose the remote runtime ownership contract | RB-E03 | High | M2 |
-| [RB-S09](#rb-s09) | Configure remote working directories and runtime prerequisites | RB-E03 | High | M2 |
-| [RB-S10](#rb-s10) | Supervise owned services on remote hosts | RB-E03 | High | M2 |
-| [RB-S11](#rb-s11) | Run dependency-aware plans across hosts | RB-E03 | High | M2 |
-| [RB-S12](#rb-s12) | Record run history and reconnect diagnostics | RB-E03 | Medium | M2 |
-| [RB-S13](#rb-s13) | Make environment and target boundaries visible | RB-E04 | High | M2 |
-| [RB-S14](#rb-s14) | Add one AI provider through an adapter | RB-E05 | High | M3 |
-| [RB-S15](#rb-s15) | Discover an existing application with AI assistance | RB-E05 | High | M3 |
-| [RB-S16](#rb-s16) | Review and apply AI-proposed workflow changes | RB-E05 | High | M3 |
-| [RB-S17](#rb-s17) | Model a new application from a reviewed blueprint | RB-E05 | Medium | M3 |
-| [RB-S18](#rb-s18) | Provide a workflow-aware Redis console | RB-E06 | Medium | Later |
-| [RB-S19](#rb-s19) | Provide a workflow-aware Kafka console | RB-E06 | Medium | Later |
-| [RB-S20](#rb-s20) | Correlate runtime events across workflow resources | RB-E06 | Medium | Later |
-| [RB-S21](#rb-s21) | Export a portable development-tool inventory | RB-E07 | Low | Later |
-| [RB-S22](#rb-s22) | Validate and package the first distributed-workflow beta | RB-E07 | High | Beta gate |
+| [RB-S01](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/8) | Introduce a workflow resource model | RB-E01 | High | M1 |
+| [RB-S02](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/9) | Bind resources per environment | RB-E01 | High | M1 |
+| [RB-S03](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/10) | Attach and reconcile existing application resources | RB-E01 | High | M1 |
+| [RB-S04](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/11) | Build a multi-host workflow cockpit | RB-E02 | High | M1 |
+| [RB-S05](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/12) | Restore workflow layout and operational context | RB-E02 | High | M1 |
+| [RB-S06](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/13) | Import and export a shareable workflow definition | RB-E01 | High | M1 |
+| [RB-S07](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/14) | Manage credential references separately from workflows | RB-E04 | High | M1 |
+| [RB-S08](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/15) | Choose the remote runtime ownership contract | RB-E03 | High | M2 |
+| [RB-S09](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/16) | Configure remote working directories and runtime prerequisites | RB-E03 | High | M2 |
+| [RB-S10](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/17) | Supervise owned services on remote hosts | RB-E03 | High | M2 |
+| [RB-S11](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/18) | Run dependency-aware plans across hosts | RB-E03 | High | M2 |
+| [RB-S12](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/19) | Record run history and reconnect diagnostics | RB-E03 | Medium | M2 |
+| [RB-S13](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/20) | Make environment and target boundaries visible | RB-E04 | High | M2 |
+| [RB-S14](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/21) | Add one AI provider through an adapter | RB-E05 | High | M3 |
+| [RB-S15](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/22) | Discover an existing application with AI assistance | RB-E05 | High | M3 |
+| [RB-S16](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/23) | Review and apply AI-proposed workflow changes | RB-E05 | High | M3 |
+| [RB-S17](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/24) | Model a new application from a reviewed blueprint | RB-E05 | Medium | M3 |
+| [RB-S18](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/25) | Provide a workflow-aware Redis console | RB-E06 | Medium | Later |
+| [RB-S19](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/26) | Provide a workflow-aware Kafka console | RB-E06 | Medium | Later |
+| [RB-S20](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/27) | Correlate runtime events across workflow resources | RB-E06 | Medium | Later |
+| [RB-S21](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/28) | Export a portable development-tool inventory | RB-E07 | Low | Later |
+| [RB-S22](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/29) | Validate and package the first distributed-workflow beta | RB-E07 | High | Beta gate |
 
 ## Proposed stories
 
@@ -440,11 +443,11 @@ Acceptance criteria:
 5. **Database interface boundary:** agree which CloudBeaver state can be restored and which protections require upstream support or database-level permissions.
 6. **Beta scope and release owner:** agree the runtime/host matrix and public-signing process. Do not make every future protocol or AI feature a beta gate by default.
 
-## Jira handoff
+## Optional Jira import
 
-[backlog.csv](backlog.csv) is a UTF-8 planning snapshot containing **7 epics and 22 stories**. This Markdown file is the canonical proposal; regenerate the CSV snapshot when changing the proposal before import. The CSV includes story text and acceptance criteria, rather than summaries alone.
+[backlog.csv](backlog.csv) is a UTF-8 planning snapshot containing **7 epics and 22 stories**. GitHub is the active tracker; see [github-issues.md](github-issues.md) for live issue links. This Markdown file is the canonical proposal; regenerate the CSV snapshot when changing the proposal before import. The CSV includes story text and acceptance criteria, rather than summaries alone.
 
-Map `Issue Type`, `Summary`, `Description`, `Priority`, and `Labels` to fields available in the chosen Jira project. `Backlog ID`, `Epic Reference`, `Depends On`, and `Milestone` are planning metadata; map them to suitable custom fields or retain the copies in each story description. They do not establish Jira parent links or blockers automatically. Create/import the epics first, obtain their real Jira keys, then map story parents and dependency links through the chosen project's supported import process. Check a small import before importing the complete snapshot. No credentials or private connection data are included.
+If the project later adopts Jira, map `Issue Type`, `Summary`, `Description`, `Priority`, and `Labels` to fields available in that Jira project. `Backlog ID`, `Epic Reference`, `Depends On`, and `Milestone` are planning metadata; map them to suitable custom fields or retain the copies in each story description. They do not establish Jira parent links or blockers automatically. Create/import the epics first, obtain their Jira keys, then map story parents and dependency links through the chosen project's supported import process. Check a small import before importing the complete snapshot. No credentials or private connection data are included.
 
 ## Deferred areas requiring separate refinement
 
