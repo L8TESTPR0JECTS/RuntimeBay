@@ -76,6 +76,19 @@ final class ApiServer implements AutoCloseable {
         if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
         if (path.equals("/api/hosts") || path.startsWith("/api/hosts/")) { routeHosts(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
+        if (path.equals("/api/workflows") && method.equals("GET")) {
+            var workflows = runtimes.workflows();
+            var hosts = machineHosts.view();
+            json(e, 200, workflows.list().stream().map(w -> workflows.view(w, hosts)).toList()); return;
+        }
+        if (parts.length == 3 && parts[1].equals("workflows")) {
+            var workflows = runtimes.workflows();
+            if (method.equals("GET")) { json(e, 200, workflows.view(workflows.get(parts[2]), machineHosts.view())); return; }
+            if (method.equals("PUT")) {
+                var definition = gson.fromJson(body(e), WorkflowModels.Workflow.class);
+                json(e, 200, workflows.view(runtimes.saveWorkflow(parts[2], definition), machineHosts.view())); return;
+            }
+        }
         if (path.equals("/api/preferences")) {
             if (method.equals("GET")) { json(e, 200, appearance.get()); return; }
             if (method.equals("PUT")) { json(e, 200, appearance.save(body(e))); return; }

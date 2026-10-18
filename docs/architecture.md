@@ -1,6 +1,6 @@
 # Runtime Bay architecture
 
-Status: Current implementation v0.5 (2026-10-14); planned runtime architecture updated 2026-10-18. The current app uses Java, Angular, Swift, and C. The roadmap adds a Go runtime worker as a first-class host execution layer; it is planned work, not yet shipped. Java remains the application control plane, with Go owning host inspection and service process supervision as that roadmap work lands.
+Status: Current implementation v0.5, updated 2026-10-18. Java, Angular, Swift and C run the application. RB-S01 adds the versioned workflow resource model. RB-S08 supplies an isolated Go protocol/lifecycle prototype and ownership ADR; it is not integrated or bundled. Java remains the control plane; production Go inspection/supervision is later roadmap work.
 
 ## Product purpose
 
@@ -73,6 +73,8 @@ Capacitor's documented official platforms are Android, iOS, and web, making it a
 Java uses the JDK's HTTP server and virtual threads with Gson for JSON. A server framework is not required for this initial local engine. Maven produces one executable JAR; jlink packages a Java runtime into the app.
 
 ## Data model
+
+`WorkflowStore` now maintains a version-1 workflow graph over the existing stores, with stable environments, resources, machine references, Docker connection references and typed bindings. Migration retains project/service/container-link IDs and never rewrites the source registries. Remote and missing-machine service bindings remain visible and block local execution. See [the workflow model, API and recovery rules](workflow-model.md). The current service source/runtime split below remains in use.
 
 - Project: stable ID, display name, real filesystem root, service definitions.
 - Service definition: stable ID, name, shell command, relative working directory, optional TCP port.

@@ -12,7 +12,7 @@ Start a project. Follow its output. Find the port. Restart the right process. Ke
 
 ![macOS](https://img.shields.io/badge/macOS-14+-122f35?style=for-the-badge&logo=apple&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-25-cf7957?style=for-the-badge&logo=openjdk&logoColor=white)
-![Go](https://img.shields.io/badge/Go-planned-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-worker_prototype-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Angular](https://img.shields.io/badge/Angular-21-167d70?style=for-the-badge&logo=angular&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-122f35?style=for-the-badge)
 
@@ -39,6 +39,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | --- | --- |
 | **Projects & services** | Import folders; define commands and working directories; start, stop, and restart individual services or a project's services. |
 | **Databases** | A CloudBeaver Community table browser and SQL editor inside each workflow, with saved connections, filtering, staged grid edits, and transaction controls. |
+| **Workflow resource model** | Versioned environment/resource/target definitions preserve existing service and container IDs; Resource targets shows explicit machine/Docker bindings and unresolved targets. Remote-bound services cannot fall back to local execution. |
 | **Workflow containers** | Link existing local or remote containers to a project workflow; inspect live status/ports and start, stop, restart, or unlink dependencies. |
 | **Workspace terminals** | Open independent interactive zsh tabs below your projects with **＋ Terminal** or **⌘T**; resize, switch, and close shells without leaving the app. |
 | **Runtime inspector** | Inspect bounded stdout/stderr output, filter and copy logs, see process IDs and observed TCP listeners. |
@@ -118,6 +119,7 @@ Development prerequisites:
 
 - macOS 14 or newer.
 - JDK 25 and Maven 3.6.3 or newer.
+- Go 1.26.1 or newer for the experimental worker tests in `npm run check`; the worker is not integrated into the app or deployed remotely.
 - Node.js 24.9 or newer in the Node 24 series, with npm.
 - Apple's Command Line Tools (`xcode-select --install`).
 - Optional Docker CLI and a running engine, such as Docker Desktop or Colima, for containers.
@@ -169,7 +171,7 @@ Private image pulls reuse Docker authentication. Sign in with `docker login <reg
 | [`frontend/src/`](frontend/src/) | Angular workspace, container/host pages, palette tokens, appearance picker. |
 | [`frontend/tests/`](frontend/tests/) | Palette contrast and preference validation checks. |
 | [`backend/`](backend/) | Java control plane API, local persistence, workflow orchestration, Docker adapter, integration tests. |
-| `runtime/` (planned) | Versioned Go worker for host inventory and local/remote saved-service supervision; scoped in RB-S08–RB-S10. |
+| [`runtime/`](runtime/) | Experimental versioned Go protocol/lifecycle worker and tests. App integration, inventory and production supervision remain RB-S09–RB-S10 work. |
 | [`native/`](native/) | Swift macOS host, C service/PTY supervisors, bundled license text. |
 | [`scripts/`](scripts/) | Development, validation, native builds, and macOS packaging. |
 | [`examples/`](examples/) | Small API and worker for trying the runtime workflow. |
@@ -192,7 +194,7 @@ Validation covers real process ownership and shutdown, independent PTY shells, i
 
 **v0.5 is an early working foundation for macOS.** Runtime management, interactive terminal tabs, linked workflow containers, an embedded database GUI, container management, independent machine hosts with SSH terminals and tool/process inspection, and customization are implemented.
 
-**The product direction is a persistent, application-aware workflow across multiple hosts.** A workflow should combine local services, a database on one machine, Kafka on another, and their terminals, logs, and protocol consoles. A host is a resource target, rather than the boundary of the workflow. Restoring that complete operational layout, modeling environments, and supervising remote workflow services are planned; current service commands still run locally, while container links can already target different Docker connections.
+**The product direction is a persistent, application-aware workflow across multiple hosts.** The [workflow model](docs/workflow-model.md) now stores explicit environment/resource/target definitions and preserves legacy commands and container associations. A host is a resource target. Environment editing and complete operational layout restoration remain planned; current supported service execution is local, and container links can already target different Docker connections. An [experimental Go worker](docs/runtime-worker.md) and [ownership ADR](docs/decisions/0001-go-worker-ownership.md) establish the next runtime boundary; remote lifecycle guarantees and application integration remain open.
 
 AI-enhanced tooling is planned to discover how an existing application is configured and help model a new application from the ground up. Git, coding agents, API collections, debugger sessions, and deployments also remain future integrations. These capabilities are not included in the current application. See [integration research](docs/integrations.md).
 

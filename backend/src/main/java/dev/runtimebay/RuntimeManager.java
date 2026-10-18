@@ -11,6 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 final class RuntimeManager implements AutoCloseable {
     private final ProjectStore store;
+    private final WorkflowStore workflows;
     private final Path launcher;
     private final PortInspector ports;
     private final ConcurrentMap<String, Slot> slots = new ConcurrentHashMap<>();
@@ -38,8 +39,19 @@ final class RuntimeManager implements AutoCloseable {
         }
     }
 
-    RuntimeManager(ProjectStore store, Path launcher) {
+    RuntimeManager(ProjectStore store, Path launcher) throws IOException {
         this.store = store; this.launcher = launcher; this.ports = new PortInspector(launcher);
+        this.workflows = new WorkflowStore(store);
+    }
+    WorkflowStore workflows() { return workflows; }
+    WorkflowModels.Workflow saveWorkflow(String id, WorkflowModels.Workflow value) throws IOException {
+        // Target changes cannot race a running/starting service or its definition edit.
+        var locked = store.project(id).services().stream().map(Service::id).sorted().map(this::slot).toList();
+        for (Slot slot : locked) slot.operation.lock();
+        try {
+            for (Slot slot : locked) synchronized (slot) { requireStopped(slot); }
+            return workflows.save(id, value);
+        } finally { for (int i = locked.size() - 1; i >= 0; i--) locked.get(i).operation.unlock(); }
     }
     private Slot slot(String id) { return slots.computeIfAbsent(id, ignored -> new Slot()); }
 
@@ -86,6 +98,7 @@ final class RuntimeManager implements AutoCloseable {
             requireStopped(slot);
             Project project = store.project(projectId);
             Service service = store.service(projectId, id);
+            workflows.requireLocalService(projectId, id);
             Path cwd = ProjectStore.resolveDirectory(project, service.directory());
             ports.invalidate(service.port());
             slot.state = "starting";

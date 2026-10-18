@@ -41,6 +41,20 @@ class RuntimeIntegrationTest {
         assertTrue(logs.stream().anyMatch(l -> l.stream().equals("stderr") && l.message().equals("problem")));
         assertNull(view(service).pid());
     }
+    @Test void workflowTargetCannotBeChangedDuringExecutionAndRemoteTargetNeverFallsBackLocally() throws Exception {
+        Service service = add("sleep 120");
+        runtimes.start(project.id(), service.id());
+        var workflow = runtimes.workflows().get(project.id());
+        var remote = new WorkflowModels.Workflow(workflow.id(), workflow.projectId(), workflow.name(), workflow.defaultEnvironmentId(), workflow.environments(),
+            java.util.List.of(new WorkflowModels.MachineReference("local"), new WorkflowModels.MachineReference("missing-host")), workflow.dockerConnections(), workflow.resources(),
+            workflow.bindings().stream().map(b -> new WorkflowModels.Binding(b.id(), b.environmentId(), b.resourceId(), new WorkflowModels.Target("machine", "missing-host"))).toList());
+        assertEquals(409, assertThrows(ApiException.class, () -> runtimes.saveWorkflow(project.id(), remote)).status);
+        assertEquals(workflow, runtimes.workflows().get(project.id()));
+        runtimes.stop(project.id(), service.id());
+        runtimes.saveWorkflow(project.id(), remote);
+        assertEquals(409, assertThrows(ApiException.class, () -> runtimes.start(project.id(), service.id())).status);
+        assertNull(view(service).pid());
+    }
     @Test void stopsGrandchildrenAndRestartsInNewSession() throws Exception {
         Path pidFile = temporary.resolve("child.pid");
         Service service = add("sleep 120 & echo $! > '" + pidFile + "'; wait");

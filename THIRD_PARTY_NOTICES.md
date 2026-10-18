@@ -1,6 +1,6 @@
 # Third-party notices
 
-Runtime Bay's original Java, Angular, Swift, and C source is licensed under the [MIT License](LICENSE). Third-party code and artwork retain the licenses below. This inventory was checked on 2026-10-16 against `package.json`, `package-lock.json`, installed package license files, `backend/pom.xml`, the shaded backend JAR, generated frontend notices, logo provenance, and the packaged Java runtime.
+Runtime Bay's original Java, Angular, Swift, Go, and C source is licensed under the [MIT License](LICENSE). Third-party code and artwork retain the licenses below. This inventory was checked on 2026-10-16 against `package.json`, `package-lock.json`, installed package license files, `backend/pom.xml`, the shaded backend JAR, generated frontend notices, logo provenance, and the packaged Java runtime.
 
 ## Code and artwork shipped in the macOS app
 
@@ -53,7 +53,7 @@ CloudBeaver Community uses [Apache-2.0](https://github.com/dbeaver/cloudbeaver/b
 | AppKit, WebKit/WKWebView, Security, zsh, lsof, and system libraries | Provided by macOS | System/vendor notices; Runtime Bay does not copy their source into the repository |
 | Python, Java/javac, Node/npm, AWS CLI, Git, Docker, Maven, Gradle, pnpm, Yarn, Go | Discovered on a host or used by the user's commands | Their respective distributions; inspection does not install or bundle these tools |
 
-Runtime Bay's native SSH password helper and process/PTY supervisors are original project code. No `sshpass`, third-party SSH password utility, or remote agent is bundled. A Go worker is planned but is not yet shipped; release builds that include it must record the exact Go toolchain version, target binary provenance, and applicable Go license text in the packaged notices.
+Runtime Bay's native SSH password helper and process/PTY supervisors are original project code. No `sshpass`, third-party SSH password utility, or remote agent is bundled. An isolated, standard-library-only Go worker prototype lives under `runtime/` and is not bundled in the app. Its development toolchain is Go 1.26.1. The Go BSD-3-Clause [license](licenses/Go-BSD-3-Clause.txt) and [patent grant](licenses/Go-PATENTS.txt) are preserved from the installed official toolchain. Release builds that include worker binaries must record their exact compiler, dependencies, target and source/binary provenance and preserve all applicable Go notices before distribution.
 
 ## Development and test tooling
 
