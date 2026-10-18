@@ -12,6 +12,7 @@ Start a project. Follow its output. Find the port. Restart the right process. Ke
 
 ![macOS](https://img.shields.io/badge/macOS-14+-122f35?style=for-the-badge&logo=apple&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-25-cf7957?style=for-the-badge&logo=openjdk&logoColor=white)
+![Go](https://img.shields.io/badge/Go-planned-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Angular](https://img.shields.io/badge/Angular-21-167d70?style=for-the-badge&logo=angular&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-122f35?style=for-the-badge)
 
@@ -32,7 +33,7 @@ Development often means a scattered collection of terminal tabs, running servers
 
 The question it helps answer is simple: **What is running, where is it running, and how do I control it?**
 
-Your project files stay in their existing folders. Runtime Bay saves the commands you choose and runs them when you press Start. Its Java engine supervises those processes; its Angular interface keeps their state, output, and ports in view.
+Your project files stay in their existing folders. Runtime Bay saves the commands you choose and runs them when you press Start. Today its Java engine and native supervisor manage those processes; the roadmap adds a Go host worker for consistent inspection and service supervision across This Mac and remote machines. Java remains the workflow control plane, and Angular presents runtime state, output, and ports.
 
 | Workspace | Available in v0.5 |
 | --- | --- |
@@ -86,8 +87,11 @@ flowchart LR
   Mac["Native macOS host<br/>Swift · AppKit · WKWebView"] --> UI["Angular workspace<br/>Projects · Terminals · Containers · Hosts · Appearance"]
   UI --> API["Authenticated loopback API<br/>Java 25"]
   API --> Store["Local project definitions<br/>and appearance preferences"]
-  API --> Supervisor["Native process supervisor"]
-  Supervisor --> Services["Project shell services"]
+  API --> Supervisor["Current: native C supervisor"]
+  Supervisor --> Services["Current local project shell services"]
+  API -. planned .-> Worker["Go runtime worker<br/>host inventory · saved-service lifecycle"]
+  Worker -. planned .-> LocalWorker["This Mac worker"]
+  Worker -. planned .-> RemoteWorker["Approved, version-matched SSH worker"]
   API --> PTY["Native PTY supervisor per terminal"]
   PTY --> Shells["Independent interactive zsh shells"]
   API --> Database["Private database gateway"]
@@ -102,7 +106,7 @@ flowchart LR
   Docker --> Registry["Docker Hub / other image registries"]
 ```
 
-The native host starts a Java backend on a random loopback port and supplies a per-launch session token. API requests require that token and validate their host and origin. The small C supervisor gives each service a dedicated process session and cleans up its descendants on Stop, shell exit, or loss of the Java owner.
+The native host starts a Java backend on a random loopback port and supplies a per-launch session token. API requests require that token and validate their host and origin. Today the C supervisor gives each local service a dedicated process session and cleans up its descendants on Stop, shell exit, or loss of the Java owner. The roadmap moves saved-service ownership and host inventory to a versioned Go worker; Java will continue to authorize and coordinate workflow actions. See the [Java/Go runtime architecture](docs/architecture.md#planned-java-and-go-runtime-boundary) and stories RB-S08–RB-S10 in the [GitHub roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4).
 
 Docker actions use explicit contexts and endpoint checks. Runtime Bay reuses Docker's credential helper, SSH configuration, keys, and host verification. It does not collect registry passwords or install a remote agent. Docker Hub stores images; Docker engines run containers.
 
@@ -164,7 +168,8 @@ Private image pulls reuse Docker authentication. Sign in with `docker login <reg
 | --- | --- |
 | [`frontend/src/`](frontend/src/) | Angular workspace, container/host pages, palette tokens, appearance picker. |
 | [`frontend/tests/`](frontend/tests/) | Palette contrast and preference validation checks. |
-| [`backend/`](backend/) | Java API, local persistence, process orchestration, Docker adapter, integration tests. |
+| [`backend/`](backend/) | Java control plane API, local persistence, workflow orchestration, Docker adapter, integration tests. |
+| `runtime/` (planned) | Versioned Go worker for host inventory and local/remote saved-service supervision; scoped in RB-S08–RB-S10. |
 | [`native/`](native/) | Swift macOS host, C service/PTY supervisors, bundled license text. |
 | [`scripts/`](scripts/) | Development, validation, native builds, and macOS packaging. |
 | [`examples/`](examples/) | Small API and worker for trying the runtime workflow. |
@@ -195,7 +200,7 @@ Current boundaries include:
 
 - Project service output is captured for inspection; use the separate workspace terminals for interactive commands. Terminal sessions and scrollback live in memory and end when the app closes.
 - Independent services; dependency ordering, readiness checks, profiles, and run history are future work.
-- Process ownership covers descendants in the supervised session; intentionally daemonized processes can escape that session.
+- Current process ownership covers descendants in the supervised C session; intentionally daemonized processes can escape that session. The planned Go worker replaces saved-service supervision only after its ownership and reconnect behavior pass the RB-S08–RB-S10 checks.
 - Docker standalone engines; Compose labels are displayed, but stack deployment, Kubernetes/Swarm, container exec, registry publishing, and volume/network deletion are future work.
 - macOS only; no Windows build, auto-updater, telemetry, or published website.
 
@@ -203,7 +208,7 @@ The [GitHub roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) tracks t
 
 ## Contributing
 
-Keep runtime orchestration in Java, interface behavior in Angular, and the native macOS host small. New integrations should reuse the project and runtime model. Run `npm run check` before proposing a change, and add meaningful coverage when changing process ownership, persistence, connection targeting, or the API security boundary.
+Keep workflow policy, persistence, and orchestration in the Java control plane; use the planned Go worker for host-local inspection and saved-service process lifecycle; keep the Angular interface focused on presentation and the Swift/C macOS host focused on OS integration and interactive PTYs. New integrations should reuse the workflow/runtime model. Run `npm run check` before proposing a change, and add meaningful coverage when changing process ownership, persistence, connection targeting, or the API security boundary.
 
 Issues and pull requests are welcome in [RuntimeBay](https://github.com/L8TESTPR0JECTS/RuntimeBay).
 

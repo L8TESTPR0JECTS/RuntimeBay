@@ -5,7 +5,7 @@ Proposed repository planning ID: RB-E01. No Jira issue exists yet.",High,runtime
 Epic,Persistent workflow cockpit,"Bring an application’s runtime views together and restore useful context without replaying execution.
 
 Proposed repository planning ID: RB-E02. No Jira issue exists yet.",High,runtimebay,RB-E02,,,
-Epic,Distributed runtime operations,"Start, observe, and stop the correct owned runtime on the correct machine, with explicit failure handling.
+Epic,Distributed runtime operations,"Define and operate a distributed runtime using a Java workflow control plane and a versioned Go host worker for host inspection and saved-service process ownership. Java retains workflow policy, persistence, dependency planning, and integration coordination; Go owns bounded host-local inspection and process lifecycle. Keep Docker and database companions as separate adapters.
 
 Proposed repository planning ID: RB-E03. No Jira issue exists yet.",High,runtimebay,RB-E03,,,
 Epic,Credentials and environment protection,"Keep credentials outside shared definitions and make the effective target clear before mutations.
@@ -111,50 +111,54 @@ Epic reference: RB-E04
 Depends on: RB-S01
 Proposed slice: M1
 Status: Proposed; not a delivery commitment.",High,runtimebay,RB-S07,RB-E04,RB-S01,M1
-Story,Choose the remote runtime ownership contract,"As a maintainer, I want an evidenced remote execution design, so lifecycle controls remain reliable when SSH disconnects or Runtime Bay quits.
+Story,Define the Go runtime worker and ownership contract,"As a maintainer, I want a versioned Go worker contract shared by local and remote hosts, so Java can coordinate reliable host inspection and service lifecycle without becoming the process supervisor.
 
 Acceptance criteria:
-1. Time-box a spike comparing an SSH-owned wrapper with an optional remote supervisor/agent, and record the decision, supported remote operating systems, installation footprint, and tradeoffs in an ADR.
-2. Demonstrate on a disposable host: start, observe, reconnect after a transport interruption, stop, and app shutdown; record what actually survives each event.
-3. Define an identity/ownership scheme that prevents stopping an unrelated process after PID reuse and distinguishes unknown state from confirmed exit.
-4. Document explicit consent for any remote file installation, the connection/shutdown policy, and cleanup behavior; no agent is installed merely by adding or inspecting a host.
+
+1. Record an architecture decision that assigns workflow definitions, authorization, persistence, dependency plans, and integrations to Java; host facts, tool inventory, process identity, readiness, bounded output, and child cleanup to Go; UI to Angular; macOS lifecycle to Swift; and interactive PTYs to the existing native helper.
+2. Define a versioned capability handshake and JSON request/event schema over parent-owned stdin/stdout; diagnostics use stderr, payloads and output are bounded, protocol versions are checked before mutation, and the worker exposes no inbound listener by default.
+3. Prototype local and verified-SSH invocation on This Mac and disposable supported hosts; test start, observation, disconnect/reconnect, stop, PID reuse, remote reboot, and app shutdown before choosing short-lived SSH invocation or optional persistent worker mode.
+4. Select the initial OS/architecture matrix, Go toolchain versioning, binary integrity/provenance, cleanup/update path, and compatibility policy. Any remote worker copy, installation, update, persistence, or removal requires explicit approval for that host; host creation alone never installs or runs it.
 
 Planning ID: RB-S08
 Epic reference: RB-E03
 Depends on: None
 Proposed slice: M2
 Status: Proposed; not a delivery commitment.",High,runtimebay,RB-S08,RB-E03,,M2
-Story,Configure remote working directories and runtime prerequisites,"As a developer, I want each service’s remote location and prerequisites checked, so execution uses the intended files and toolchain.
+Story,Build and verify host workers and runtime prerequisites,"As a developer, I want a compatible Go worker to report each host’s tools and validate service locations, so preflight examines the target machine without guessing from my Mac.
 
 Acceptance criteria:
-1. Configure a remote project root and resource-relative working directory per host/environment, independently of the local checkout path.
-2. Validate existence, access, required executables, and configured version requirements on the selected host; present missing tools without installing them.
-3. Display the effective target, directory, command, and redacted configuration before the first launch or after a target change.
-4. Do not assume that a local path exists remotely, synchronize source code implicitly, or execute configuration text during preflight.
+
+1. Build and bundle a pinned, architecture-matched Go worker for This Mac and the OS/architectures selected in RB-S08; record toolchain version and binary provenance and run the Go test/static-check suite in packaging CI.
+2. Have the worker report OS, architecture, worker/protocol versions, capabilities, and an allowlisted tool inventory with paths and bounded versions; reject incompatible workers visibly and never silently target a different machine.
+3. Configure a remote project root and resource-relative working directory per host/environment, then validate existence, access, required executables, and version requirements on that selected host without installing application dependencies.
+4. Preview the effective host, worker version, directory, command, and redacted configuration before launch. Remote worker deployment itself requires explicit approval. Do not assume local paths exist remotely, sync source implicitly, or execute project configuration during preflight.
 
 Planning ID: RB-S09
 Epic reference: RB-E03
 Depends on: RB-S02, RB-S08
 Proposed slice: M2
 Status: Proposed; not a delivery commitment.",High,runtimebay,RB-S09,RB-E03,"RB-S02, RB-S08",M2
-Story,Supervise owned services on remote hosts,"As a developer, I want to start, inspect, restart, and stop my configured service on its bound host, so remote runtimes become first-class workflow resources.
+Story,Supervise saved services through the Go worker,"As a developer, I want saved services on This Mac and remote hosts to use the same Go-owned lifecycle contract, so Runtime Bay can reliably inspect, reconnect to, and stop only processes it started.
 
 Acceptance criteria:
-1. Use the selected environment binding, credential reference, working directory, and the ownership contract from RB-S08; retain local service execution.
-2. Stream bounded output and lifecycle state with a remote runtime identity; show disconnected/unknown states during transport loss and reconcile after reconnecting.
-3. Stop/restart affects only a verified Runtime Bay-owned runtime, including owned child processes according to the documented contract; refuse when ownership cannot be established.
-4. Show the remote disconnect and app-close policy before launch; verify it under network loss, cancellation, remote reboot, and app shutdown on disposable fixtures/hosts.
+
+1. Route local saved-service start/observe/restart/stop through the bundled Go worker and remote operations through the matching verified worker; Java remains the policy/orchestration API and the worker is not a second source of workflow configuration.
+2. Give each run a collision-resistant identity tied to its target host, service, and start instance; the Go worker owns descendants and emits bounded, ordered output and lifecycle events using the RB-S08 protocol.
+3. Reconnect and reconcile unknown/disconnected state after SSH or app interruption without trusting a bare PID; refuse stop/restart unless the worker verifies ownership. Preserve external/shared dependency protection and existing user commands.
+4. Make the remote persistence/disconnect/app-close behavior visible before launch. Verify cancellation, host reboot, worker upgrade/cleanup, PID reuse, and app shutdown on disposable fixtures. Any required remote worker installation must follow explicit per-host approval.
 
 Planning ID: RB-S10
 Epic reference: RB-E03
 Depends on: RB-S07, RB-S08, RB-S09
 Proposed slice: M2
 Status: Proposed; not a delivery commitment.",High,runtimebay,RB-S10,RB-E03,"RB-S07, RB-S08, RB-S09",M2
-Story,Run dependency-aware plans across hosts,"As a developer, I want an explicit startup plan with readiness checks, so services start after their required dependencies are usable.
+Story,Run dependency-aware plans across hosts,"As a developer, I want Java to coordinate a dependency-aware plan across Go workers, so services start after their required dependencies are usable on the correct hosts.
 
 Acceptance criteria:
-1. Define dependency edges and supported readiness checks; reject cycles and show the ordered plan, targets, and affected resources before starting.
-2. Wait for declared readiness rather than treating an open port alone as application health; timeouts and failed dependencies block dependent starts with useful diagnostics.
+
+1. Define dependency edges and supported readiness checks; Java rejects cycles and shows the ordered plan, worker versions, targets, and affected resources before starting.
+2. Coordinate versioned readiness events from the selected Go workers rather than treating an open port alone as application health; timeouts and failed dependencies block dependent starts with useful diagnostics.
 3. Cancel a plan without indiscriminately stopping existing resources; distinguish resources started by this run from shared or pre-existing dependencies.
 4. A stop plan identifies ownership and shared dependencies, previews its effects, and never stops an external/shared resource merely because the workflow references it.
 
@@ -296,10 +300,12 @@ Status: Proposed; not a delivery commitment.",Low,runtimebay,RB-S21,RB-E07,RB-S0
 Story,Validate and package the first distributed-workflow beta,"As a beta user, I want an installable macOS build with clear capabilities and dependable recovery, so I can try Runtime Bay with my own application.
 
 Acceptance criteria:
+
 1. Exercise the agreed beta support matrix: local Mac plus a disposable supported SSH host, multi-host workflow restore, missing credentials, host disconnect, and safe ownership checks.
-2. Pass relevant process/API/native/frontend checks and verify fresh install, supported-data migration, cancellation, package signatures, bundled notices, and documented recovery steps.
-3. Publish a capability/limitations matrix that distinguishes implemented features from planned AI, protocol, deployment, and environment-restoration features.
-4. Before a public binary release, configure the release owner’s Developer ID/notarization and artifact/source provenance. Signing credentials are supplied through the release process, not stored in Git.
+2. Build, test, and package Go workers for the supported matrix; verify matching worker/protocol versions, binary integrity, child cleanup, and documented recovery for an unavailable or rejected worker.
+3. Pass relevant Java, Go, API, native, and frontend checks; verify fresh install, supported-data migration, cancellation, package signatures, bundled third-party/Go notices, and documented recovery steps.
+4. Publish a capability/limitations matrix that distinguishes implemented features from planned AI, protocol, deployment, and environment-restoration features.
+5. Before a public binary release, configure the release owner’s Developer ID/notarization and artifact/source provenance. Signing credentials are supplied through the release process, not stored in Git.
 
 Planning ID: RB-S22
 Epic reference: RB-E07

@@ -1,6 +1,6 @@
 # Runtime Bay architecture
 
-Status: v0.5, 2026-10-14. Service start/stop/restart, logs, ports, and container environments are implemented. Required stack: Java backend, Angular frontend, macOS first.
+Status: Current implementation v0.5 (2026-10-14); planned runtime architecture updated 2026-10-18. The current app uses Java, Angular, Swift, and C. The roadmap adds a Go runtime worker as a first-class host execution layer; it is planned work, not yet shipped. Java remains the application control plane, with Go owning host inspection and service process supervision as that roadmap work lands.
 
 ## Product purpose
 
@@ -28,6 +28,45 @@ flowchart TD
 ```
 
 The Angular interface is web-rendered inside a native macOS application; its widgets are not SwiftUI/AppKit controls. The host owns native application lifecycle, menus, folder selection, the bundled Java engine, and session bootstrap. Java owns product logic. The C helper supplies the process-session and signal operations needed to supervise Unix services.
+
+## Planned Java and Go runtime boundary
+
+Runtime Bay will use a Java control plane and a Go host runtime worker, with deliberately separate responsibilities:
+
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| Angular interface | Workflow views, user intent, status, review of targets and actions | Process ownership, credentials, remote execution policy |
+| Java control plane | Workflow/environment model, local authenticated API, persistence, authorization and target checks, dependency plans, adapter coordination, run history | Remote child-process lifecycle or an independent host inventory implementation |
+| Go runtime worker | Host facts and allowlisted tool inventory; process start/observe/stop, process identity, bounded output, readiness probes, and child cleanup on the worker's host | Workflow persistence, UI state, Docker credential management, AI provider credentials, listening network API by default |
+| Swift macOS host | App/window lifecycle, WebKit trust boundary, OS integration, packaging bootstrap | Workflow orchestration or remote runtime policy |
+| C terminal helper | Existing interactive PTY terminal lifecycle during the migration | New saved-service supervision after the Go worker replaces that path |
+
+The Go worker becomes the common service-supervision implementation for **This Mac and supported remote machines**. Java continues to decide what the workflow means and where an operation is allowed; it sends a narrow, validated operation to the selected host worker and presents the worker's result. Docker and CloudBeaver remain separate adapters/companions with their own lifecycle and credentials. The worker does not become a second general-purpose backend.
+
+### Worker protocol and layout
+
+The planned worker is a versioned Go module, organized around small host capabilities rather than product features:
+
+```text
+runtime/
+  go.mod
+  cmd/runtimebay-worker/       # worker entry point and protocol loop
+  internal/protocol/           # versioned request, response, event, capability schemas
+  internal/inventory/          # OS, architecture, allowlisted tools and process snapshots
+  internal/supervisor/         # owned service start, observe, readiness, stop and cleanup
+  internal/platform/           # macOS/Linux process and filesystem differences
+  internal/security/           # path validation, output bounds and redaction helpers
+```
+
+Java owns transport and worker selection. Locally it launches the bundled, architecture-matched Go executable as a child process. Remote workers use the existing verified OpenSSH route. The default control channel is a parent-owned stdin/stdout stream with versioned JSON messages; protocol output stays on stdout and diagnostics stay on stderr. Requests carry a protocol version, operation ID, target/runtime identity, and explicit capability requirements. Responses report worker version and supported capabilities before mutations. The worker exposes no inbound network listener by default.
+
+The remote bootstrap and persistence mechanism remains a story-level design decision: short-lived SSH invocation versus an optional persistent worker. Any remote copy, install, update, persistent service, or removal must be previewed and explicitly approved for that machine. Adding or inspecting a host does not install or execute the Go worker. Existing read-only SSH inspection remains available until the user opts into worker-backed inspection. SSH host-key verification and the current session-only credential policy continue to apply.
+
+### Build and release boundaries
+
+The worker is compiled per supported OS/architecture and bundled for the local Mac. Go itself is a build-time toolchain; the app packages the worker executable, not a separate Go runtime. Remote delivery selects a worker that matches the reported target. The Java API checks worker/protocol compatibility and binary provenance before enabling a capability; an unavailable or mismatched worker produces a visible unsupported state and never falls back to another machine. `go test` and static checks become part of the native/package CI path. The exact Go toolchain version, target matrix, and binary license/provenance records are pinned per release and included in third-party notices.
+
+During migration, the current C service supervisor remains the implementation until the Go worker passes equivalent ownership and cleanup checks. RB-S10 moves saved service lifecycle to the Go worker; native C remains for the existing interactive PTY terminal path unless a later story replaces it. This keeps terminal sessions and saved workflow services as distinct ownership models.
 
 Capacitor's documented official platforms are Android, iOS, and web, making it a poor default for this macOS desktop project. Tauri remains a possible later host if Windows support becomes a priority. The initial implementation uses a small Swift host to align with the macOS-only focus and the available build tools. It adds no Rust or Node orchestration layer.
 
@@ -73,7 +112,7 @@ A separate [terminal subsystem](terminals.md) owns interactive shells independen
 
 Host terminals and inspection may share an authenticated SSH connection through a private temporary control directory scoped to this app instance and machine ID/target/account. This supports signing in interactively before retrying inspection, without saving credentials. The native PTY executes the SSH argv directly; user-provided destinations are validated and never interpolated into a shell command. Session controls are cleaned after scan workers and terminal clients close.
 
-The preferred machine applies to new terminal tabs. Saved project service definitions still execute locally; remote workflow supervision and deployment are future work. Docker engine configuration remains inside Containers, and machine actions do not mutate Docker settings.
+The preferred machine applies to new terminal tabs. In the current implementation saved project service definitions still execute locally. RB-S08–RB-S10 plan the Go worker contract, worker-backed host inventory/preflight, and local/remote saved-service supervision. Docker engine configuration remains inside Containers, and machine actions do not mutate Docker settings.
 
 ## Local API boundary
 
@@ -85,8 +124,8 @@ These are local application boundaries, not isolation from other software runnin
 
 ## Delivery sequence
 
-1. **Runtime foundation (implemented):** project folders, service commands, start/stop/restart, child cleanup, bounded logs, listener inspection, native packaging.
-2. **Runtime reliability:** declarative project manifest, dependency graph, readiness probes, environment profiles with Keychain secret references, persistent run history. Workspace PTY terminals and standalone Docker management are implemented; add Compose deployment and shared readiness/health behavior next.
+1. **Runtime foundation (implemented):** project folders, service commands, start/stop/restart, child cleanup, bounded logs, listener inspection, native packaging. Current saved-service supervision is Java plus the native C supervisor.
+2. **Go runtime worker (planned in RB-S08–RB-S10):** define a versioned worker contract; build and verify host-matched binaries; move host inventory/preflight and saved-service process ownership to Go across This Mac and supported remote hosts. Keep Java as workflow control plane and retain explicit approval for remote worker installation or persistence. Then coordinate worker readiness through dependency plans and run history.
 3. **Git and agents:** Git status/diffs, worktrees, one Codex adapter, streaming agent events and approvals, and association of agent sessions with their worktree and runtime. Evaluate T3 reuse at a pinned upstream revision.
 4. **API workflows:** Bruno collection execution, Postman-compatible imports subject to format support, shared environment values, request history, and results associated with the selected run.
 5. **Debugging and deployment:** editor debugger launch/attach first, then protocol-based integrations and explicit deployment targets. Deployment history records the revision, configuration, and result.

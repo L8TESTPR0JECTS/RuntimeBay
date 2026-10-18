@@ -53,7 +53,7 @@ CloudBeaver Community uses [Apache-2.0](https://github.com/dbeaver/cloudbeaver/b
 | AppKit, WebKit/WKWebView, Security, zsh, lsof, and system libraries | Provided by macOS | System/vendor notices; Runtime Bay does not copy their source into the repository |
 | Python, Java/javac, Node/npm, AWS CLI, Git, Docker, Maven, Gradle, pnpm, Yarn, Go | Discovered on a host or used by the user's commands | Their respective distributions; inspection does not install or bundle these tools |
 
-Runtime Bay's native SSH password helper and process/PTY supervisors are original project code. No `sshpass`, third-party SSH password utility, or remote agent is bundled.
+Runtime Bay's native SSH password helper and process/PTY supervisors are original project code. No `sshpass`, third-party SSH password utility, or remote agent is bundled. A Go worker is planned but is not yet shipped; release builds that include it must record the exact Go toolchain version, target binary provenance, and applicable Go license text in the packaged notices.
 
 ## Development and test tooling
 
