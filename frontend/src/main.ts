@@ -2,7 +2,7 @@ import { Component, inject, computed, effect, signal, OnDestroy, ElementRef, Vie
 import { bootstrapApplication } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { Project, Service, LogEntry, LogResponse } from './types';
+import { Project, Service, WorkflowView, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
 import { WorkflowContainers } from './workflow-containers';
 import { Databases } from './databases';
@@ -27,6 +27,7 @@ class App implements OnDestroy {
   readonly sessionToken = session;
   readonly terminals = new TerminalWorkspace(session);
   projects = signal<Project[]>([]);
+  workflows = signal<WorkflowView[]>([]);
   projectId = signal<string | null>(null);
   serviceId = signal<string | null>(null);
   connected = signal(false);
@@ -40,6 +41,9 @@ class App implements OnDestroy {
   logFilter = signal('');
   follow = signal(true);
   project = computed(() => this.projects().find(p => p.id === this.projectId()) || null);
+  workflow = computed(() => this.workflows().find(w => w.definition.projectId === this.projectId()) || null);
+  environmentName = computed(() => this.workflow()?.definition.environments.find(e => e.id === this.workflow()?.definition.defaultEnvironmentId)?.name || 'Local');
+  canStartAll = computed(() => !!this.workflow() && (this.project()?.services.filter(s => !this.active(s)).every(s => this.canStart(s)) ?? false));
   service = computed(() => this.project()?.services.find(s => s.id === this.serviceId()) || null);
   running = computed(() => this.projects().flatMap(p => p.services).filter(s => this.active(s)).length);
   serviceCount = computed(() => this.projects().reduce((sum, p) => sum + p.services.length, 0));
@@ -125,12 +129,13 @@ class App implements OnDestroy {
   refreshForeground() { return this.loadingTasks.run('Reconnecting to your workspace…', () => this.refresh()); }
   private async readWorkspace() {
     try {
-      const projects = await this.api<Project[]>('/projects');
+      const [projects, workflows] = await Promise.all([this.api<Project[]>('/projects'), this.api<WorkflowView[]>('/workflows')]);
+      this.workflows.set(workflows);
       this.projects.set(projects); this.connected.set(true);
       if (!projects.some(p => p.id === this.projectId())) this.selectProject(projects[0]?.id || null, false);
       const selected = this.service();
       if (selected && this.view() === 'runtime') await this.refreshLogs(this.projectId()!, selected.id);
-    } catch { if (!this.destroyed) this.connected.set(false); }
+    } catch (e) { if (!this.destroyed) { this.connected.set(false); this.error.set((e as Error).message); } }
     finally { this.loading.set(false); }
   }
   private async refreshLogs(project: string, service: string) {
@@ -162,9 +167,11 @@ class App implements OnDestroy {
   }
   active(service: Service) { return ['running', 'starting', 'stopping'].includes(service.state); }
   busy(service: Service) { return this.pending().includes(service.id) || service.state === 'starting' || service.state === 'stopping'; }
+  canStart(service: Service) { return this.workflow()?.resources.some(r => r.resourceId === service.id && r.type === 'service' && r.status === 'local') ?? false; }
   async action(service: Service, action: 'start' | 'stop' | 'restart') {
     const project = this.project();
     if (!project || this.busy(service)) return;
+    if (action !== 'stop' && !this.canStart(service)) { this.error.set('Resolve this service’s machine binding before starting. Remote service execution is not available yet.'); return; }
     const releaseLoading = this.loadingTasks.begin(`${action === 'start' ? 'Starting' : action === 'stop' ? 'Stopping' : 'Restarting'} ${service.name}…`);
     this.pending.update(ids => [...ids, service.id]); this.error.set('');
     this.selectService(service.id);
@@ -175,6 +182,7 @@ class App implements OnDestroy {
     finally { this.pending.update(ids => ids.filter(id => id !== service.id)); releaseLoading(); }
   }
   async all(action: 'start' | 'stop') {
+    if (action === 'start' && !this.canStartAll()) { this.error.set('Some services have unavailable targets. Resolve their bindings before starting this workflow.'); return; }
     const services = this.project()?.services.filter(s => action === 'start' ? !this.active(s) : this.active(s)) || [];
     await Promise.all(services.map(s => this.action(s, action)));
   }

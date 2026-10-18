@@ -6,6 +6,10 @@ export interface Service {
   pid: number | null; exitCode: number | null; startedAt: string | null; portInfo: PortInfo | null;
 }
 export interface Project { id: string; name: string; path: string; services: Service[] }
+export interface WorkflowView {
+  definition: { id: string; projectId: string; name: string; defaultEnvironmentId: string; environments: { id: string; name: string }[] };
+  resources: { id: string; resourceId: string; name: string; type: 'service' | 'container'; targetKind: 'machine' | 'docker'; targetId: string; targetName: string; status: 'local' | 'unsupported' | 'unresolved' | 'linked'; detail: string }[];
+}
 export interface LogEntry { sequence: number; time: string; stream: string; message: string }
 export interface LogResponse { entries: LogEntry[]; next: number; truncated: boolean }
 declare global {

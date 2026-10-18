@@ -98,6 +98,28 @@ class ApiServerTest {
         assertEquals(400, status(request("/api/projects/" + id + "/services").header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"Fraction\",\"command\":\"echo hello\",\"port\":4310.5}"))));
     }
+    @Test void workflowGraphApiPreservesTargetsAndBlocksUnresolvedLocalExecution() throws Exception {
+        assertEquals(401, status(request("/api/workflows")));
+        var created = client.send(request("/api/projects").header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(java.util.Map.of("name", "Bound workflow", "path", temporary.toString())))).build(), HttpResponse.BodyHandlers.ofString());
+        String project = JsonParser.parseString(created.body()).getAsJsonObject().get("id").getAsString();
+        var serviceResponse = client.send(request("/api/projects/" + project + "/services").header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"API\",\"command\":\"echo never-executed\",\"directory\":\".\"}")).build(), HttpResponse.BodyHandlers.ofString());
+        String service = JsonParser.parseString(serviceResponse.body()).getAsJsonObject().get("id").getAsString();
+        var response = client.send(request("/api/workflows/" + project).header("Authorization", "Bearer " + token).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        JsonObject view = JsonParser.parseString(response.body()).getAsJsonObject(), definition = view.getAsJsonObject("definition");
+        assertEquals("local", view.getAsJsonArray("resources").get(0).getAsJsonObject().get("status").getAsString());
+        JsonObject machine = new JsonObject(); machine.addProperty("id", "unresolved-machine"); definition.getAsJsonArray("machines").add(machine);
+        definition.getAsJsonArray("bindings").get(0).getAsJsonObject().getAsJsonObject("target").addProperty("id", "unresolved-machine");
+        assertEquals(401, status(request("/api/workflows/" + project).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(definition.toString()))));
+        assertEquals(403, status(request("/api/workflows/" + project).header("Authorization", "Bearer " + token).header("Origin", "https://example.com").header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(definition.toString()))));
+        var updated = client.send(request("/api/workflows/" + project).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(definition.toString())).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updated.statusCode(), updated.body());
+        assertEquals("unresolved", JsonParser.parseString(updated.body()).getAsJsonObject().getAsJsonArray("resources").get(0).getAsJsonObject().get("status").getAsString());
+        assertEquals(409, status(request("/api/projects/" + project + "/services/" + service + "/start").header("Authorization", "Bearer " + token).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}"))));
+        assertEquals(400, status(request("/api/workflows/" + project).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString("{}"))));
+    }
     @Test void preferencesRequireAuthenticationAndValidateSelections() throws Exception {
         assertEquals(401, status(request("/api/preferences")));
         assertEquals(200, status(request("/api/preferences").header("Authorization", "Bearer " + token)));

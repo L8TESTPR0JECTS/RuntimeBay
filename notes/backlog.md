@@ -17,7 +17,7 @@ AI should help understand existing applications and model new ones. It proposes 
 
 Local service controls and bounded logs/port observations; standalone local/SSH terminal tabs; independent machine records and tool/process inspection; Docker connection and container management; workflow container links; an embedded CloudBeaver database workspace; session SSH passwords; original-color tool logos; appearance, font-size and zoom controls; macOS packaging and third-party notices. These are the starting point, not new backlog stories.
 
-Current limits include local-only saved service execution, no persistent multi-panel workflow cockpit, no shareable workflow manifest, no AI adapter, and no Redis/Kafka protocol consoles. Go is currently only detected as an installed host tool; no Go worker is shipped or used by Runtime Bay yet. Machine identities and Docker connection identities are currently separate and must remain distinct concepts.
+Current limits include local-only saved service execution, no persistent multi-panel workflow cockpit, no shareable workflow manifest, no AI adapter, and no Redis/Kafka protocol consoles. The app does not use a Go worker yet; RB-S08 now has an isolated local protocol/lifecycle prototype and ownership ADR under `runtime/` and `docs/decisions/`. Machine identities and Docker connection identities are currently separate and must remain distinct concepts.
 
 ## Technology boundaries for the next runtime stories
 
@@ -92,7 +92,8 @@ This is a proposed sequence, not release dates or sprint commitments. Start RB-S
 
 ### RB-S01 — Introduce a workflow resource model
 
-**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** Proposed  
+**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** In review — workflow model foundation
+
 **Depends on:** None
 
 As a developer, I want a workflow to describe my application and its resources independently of a single host, so I can model how the application actually runs.
@@ -204,7 +205,8 @@ Acceptance criteria:
 
 ### RB-S08 — Define the Go runtime worker and ownership contract
 
-**Epic:** RB-E03 · **Priority:** High · **Slice:** M2 · **Status:** Proposed  
+**Epic:** RB-E03 · **Priority:** High · **Slice:** M2 · **Status:** In progress — local prototype; remote ownership evidence pending
+
 **Depends on:** None
 
 As a maintainer, I want a versioned Go worker contract shared by local and remote hosts, so Java can coordinate reliable host inspection and service lifecycle without becoming the process supervisor.

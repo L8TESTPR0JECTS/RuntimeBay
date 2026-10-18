@@ -7,5 +7,11 @@ swiftc -module-cache-path "$PWD/.cache/swift" native/WorkspaceZoom.swift native/
 .build/workspace-zoom-tests
 export RUNTIMEBAY_LAUNCHER="$PWD/.build/runtimebay-launcher"
 mvn -q -f backend/pom.xml -Dmaven.repo.local="$PWD/.cache/m2" test
+(
+  cd runtime
+  export GOCACHE="$PWD/.build/go-cache" GOMODCACHE="$PWD/.build/go-mod-cache"
+  go test -race ./...
+  go vet ./...
+)
 npm run test:ui
 npm run build:web
