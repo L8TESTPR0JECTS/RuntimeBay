@@ -1401,3 +1401,13 @@ input,textarea,select {
 .workflow-target-state { font-size:.75rem; color:var(--muted); padding:.3rem .6rem; border:1px solid var(--line); border-radius:1rem; }
 .workflow-target-row.unresolved .workflow-target-state { font-weight:600; color:var(--ink); border-color:var(--accent); }
 @media(max-width:800px) { .workflow-target-row { grid-template-columns:1fr; gap:.5rem; } .workflow-target-state { justify-self:start; } }
+
+.environment-modal { width: min(780px, 100%); }
+.environment-modal select { display: block; width: 100%; margin-top: 9px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: calc(12px * var(--font-scale, 1)); letter-spacing: normal; }
+.environment-modal .environment-bindings label { margin-top: 0; }
+.environment-modal .section-actions { margin: 14px 0; flex-wrap: wrap; }
+.environment-bindings { display: grid; gap: 12px; margin-top: 24px; }
+.environment-bindings label { padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.environment-bindings small { display: block; font-weight: 400; text-transform: none; letter-spacing: normal; overflow-wrap: anywhere; }
+.environment-review { padding-left: 24px; line-height: 1.7; overflow-wrap: anywhere; }
+.environment-review li { margin-bottom: 12px; }

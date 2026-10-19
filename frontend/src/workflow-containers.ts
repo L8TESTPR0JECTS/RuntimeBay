@@ -10,8 +10,11 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
   readonly hostLabel = dockerHostName;
   @Input() projectId = '';
   @Input() session = '';
+  @Input() environmentId = '';
+  @Input() workflowRevision = '';
   private tasks = inject(LoadingService).scope();
   readonly links = signal<Link[]>([]);
+  private sourceLinks = signal<Link[]>([]);
   readonly states = signal<ContainerState[]>([]);
   readonly error = signal('');
   readonly loading = signal(false);
@@ -58,7 +61,7 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
   private path(project = this.projectId) { return '/projects/' + project + '/containers'; }
   async load() {
     const revision = this.revision; this.loading.set(true);
-    try { const links = await this.api<Link[]>(this.path()); if (revision === this.revision) { this.links.set(links); await this.refresh(); } }
+    try { const [links, sources] = await Promise.all([this.api<Link[]>(this.path()), this.api<Link[]>(this.path() + '/links')]); if (revision === this.revision) { this.links.set(links); this.sourceLinks.set(sources); await this.refresh(); } }
     catch (error) { if (revision === this.revision && !this.controller.signal.aborted) this.error.set((error as Error).message); }
     finally { if (revision === this.revision) this.loading.set(false); }
   }
@@ -70,7 +73,7 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
     finally { if (revision === this.revision) this.refreshing = false; }
   }
   state(link: Link) { return this.states().find(value => value.link.id === link.id); }
-  linked(container: DockerContainer) { const host = this.host(); return this.links().some(link => link.context === host?.name && link.endpoint === host.endpoint && link.containerId === container.id); }
+  linked(container: DockerContainer) { const host = this.host(); return this.sourceLinks().some(link => link.context === host?.name && link.endpoint === host.endpoint && link.containerId === container.id); }
   async show() {
     this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.open.set(true); this.formError.set(''); this.filter.set(''); this.candidates.set([]); this.selectedId.set('');
@@ -104,9 +107,9 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
     this.saving.set(true); this.formError.set('');
     await this.tasks.run('Linking container to this workflow…', async () => {
       try {
-        const link = await this.api<Link>(this.path(), 'POST', { context: host.name, endpoint: host.endpoint, containerId });
+        await this.api<Link>(this.path(), 'POST', { context: host.name, endpoint: host.endpoint, containerId });
         if (revision !== this.revision) return;
-        this.links.update(links => [...links.filter(value => value.id !== link.id), link]); this.saving.set(false); this.dismiss(); await this.refresh();
+        this.saving.set(false); this.dismiss(); await this.load();
       } catch (error) { if (revision === this.revision) this.formError.set((error as Error).message); }
       finally { if (revision === this.revision) this.saving.set(false); }
     });
@@ -116,7 +119,7 @@ export class WorkflowContainers implements OnChanges, OnDestroy {
     const revision = this.revision; this.pending.update(ids => [...ids, link.id]); this.error.set('');
     await this.tasks.run(action === 'unlink' ? 'Unlinking container…' : `${action === 'stop' ? 'Stopping' : action === 'start' ? 'Starting' : action === 'restart' ? 'Restarting' : 'Resuming'} ${link.name}…`, async () => {
       try {
-        await this.api(this.path() + '/' + link.id + (action === 'unlink' ? '' : '/' + action), action === 'unlink' ? 'DELETE' : 'POST', action === 'unlink' ? undefined : {});
+        await this.api(this.path() + '/' + link.id + (action === 'unlink' ? '' : '/' + action), action === 'unlink' ? 'DELETE' : 'POST', action === 'unlink' ? undefined : { environmentId: this.environmentId, workflowRevision: this.workflowRevision });
         if (revision !== this.revision) return;
         if (action === 'unlink') { this.links.update(links => links.filter(value => value.id !== link.id)); this.states.update(states => states.filter(value => value.link.id !== link.id)); }
         else await this.refresh();

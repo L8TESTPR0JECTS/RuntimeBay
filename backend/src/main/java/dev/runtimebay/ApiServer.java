@@ -12,6 +12,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 final class ApiServer implements AutoCloseable {
+    private final Object definitionsLock = new Object();
     private final HttpServer server;
     private final ProjectStore store;
     private final RuntimeManager runtimes;
@@ -61,7 +62,9 @@ final class ApiServer implements AutoCloseable {
                     throw new ApiException(401, "Open this workspace from Runtime Bay to connect");
                 String origin = exchange.getRequestHeaders().getFirst("Origin");
                 if (origin != null && !("http://127.0.0.1:" + port()).equals(origin)) throw new ApiException(403, "Invalid origin");
-                route(exchange, path);
+                if (List.of("POST", "PUT", "DELETE").contains(exchange.getRequestMethod()) && !path.startsWith("/api/terminals")) {
+                    synchronized (definitionsLock) { route(exchange, path); }
+                } else route(exchange, path);
             } else assets(exchange, path);
         } catch (ApiException e) { json(exchange, e.status, Map.of("error", e.getMessage())); }
         catch (JsonParseException | IllegalArgumentException e) { json(exchange, 400, Map.of("error", "Invalid request: " + e.getMessage())); }
@@ -79,12 +82,19 @@ final class ApiServer implements AutoCloseable {
         if (path.equals("/api/workflows") && method.equals("GET")) {
             var workflows = runtimes.workflows();
             var hosts = machineHosts.view();
-            json(e, 200, workflows.list().stream().map(w -> workflows.view(w, hosts)).toList()); return;
+            var views = new ArrayList<WorkflowModels.View>();
+            for (var workflow : workflows.list()) views.add(workflows.view(workflow, hosts));
+            json(e, 200, views); return;
+        }
+        if (parts.length == 4 && parts[1].equals("workflows") && parts[3].equals("targets") && method.equals("GET")) {
+            runtimes.workflows().get(parts[2]); json(e, 200, runtimes.workflows().containerOptions()); return;
         }
         if (parts.length == 3 && parts[1].equals("workflows")) {
             var workflows = runtimes.workflows();
             if (method.equals("GET")) { json(e, 200, workflows.view(workflows.get(parts[2]), machineHosts.view())); return; }
             if (method.equals("PUT")) {
+                String expected = e.getRequestHeaders().getFirst("If-Match");
+                if (expected != null && !expected.equals(workflows.revision(workflows.get(parts[2])))) throw new ApiException(409, "This workflow changed while you were editing. Reopen Environments and review its latest bindings.");
                 var definition = gson.fromJson(body(e), WorkflowModels.Workflow.class);
                 json(e, 200, workflows.view(runtimes.saveWorkflow(parts[2], definition), machineHosts.view())); return;
             }
@@ -112,15 +122,16 @@ final class ApiServer implements AutoCloseable {
         if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("containers")) {
             String project = parts[2];
             if (parts.length == 4) {
-                if (method.equals("GET")) { json(e, 200, workflowContainers.list(project)); return; }
+                if (method.equals("GET")) { json(e, 200, runtimes.workflows().effectiveContainers(project)); return; }
                 if (method.equals("POST")) {
                     JsonObject value = body(e);
                     json(e, 201, workflowContainers.add(project, string(value, "context"), string(value, "endpoint"), string(value, "containerId"))); return;
                 }
             }
-            if (parts.length == 5 && parts[4].equals("status") && method.equals("GET")) { json(e, 200, workflowContainers.status(project)); return; }
-            if (parts.length == 5 && method.equals("DELETE")) { workflowContainers.remove(project, parts[4]); json(e, 200, Map.of("ok", true)); return; }
-            if (parts.length == 6 && method.equals("POST")) { body(e); workflowContainers.action(project, parts[4], parts[5]); json(e, 200, Map.of("ok", true)); return; }
+            if (parts.length == 5 && parts[4].equals("links") && method.equals("GET")) { json(e, 200, workflowContainers.list(project)); return; }
+            if (parts.length == 5 && parts[4].equals("status") && method.equals("GET")) { json(e, 200, workflowContainers.status(runtimes.workflows().effectiveContainers(project))); return; }
+            if (parts.length == 5 && method.equals("DELETE")) { runtimes.workflows().requireUnsharedLink(parts[4]); workflowContainers.remove(project, parts[4]); json(e, 200, Map.of("ok", true)); return; }
+            if (parts.length == 6 && method.equals("POST")) { var selection = body(e); runtimes.workflows().requireSelection(project, string(selection, "environmentId"), string(selection, "workflowRevision")); var link = runtimes.workflows().effectiveContainers(project).stream().filter(l -> l.id().equals(parts[4])).findFirst().orElseThrow(() -> new ApiException(404, "Workflow container not found")); workflowContainers.action(link, parts[5]); json(e, 200, Map.of("ok", true)); return; }
         }
         if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("services")) {
             String project = parts[2];
@@ -148,7 +159,7 @@ final class ApiServer implements AutoCloseable {
                     json(e, 200, runtimes.logs(project, id, after)); return;
                 }
                 if (method.equals("POST")) {
-                    body(e);
+                    var selection = body(e); runtimes.workflows().requireSelection(project, string(selection, "environmentId"), string(selection, "workflowRevision"));
                     switch (parts[5]) {
                         case "start" -> runtimes.start(project, id);
                         case "stop" -> runtimes.stop(project, id);
@@ -174,13 +185,14 @@ final class ApiServer implements AutoCloseable {
             String password = string(value, "password"); HostPasswords.validate(password);
             String id = parts.length == 2 ? null : parts[2];
             var previous = id == null ? null : machineHosts.get(id);
+            if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) runtimes.workflows().requireUnusedMachine(id);
             var saved = machineHosts.save(id, string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port);
             if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.clear(saved.id());
             if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.clear(saved.id());
             if (password != null && !password.isEmpty()) hostPasswords.set(saved.id(), password);
             json(e, parts.length == 2 ? 201 : 200, saved); return;
         }
-        if (parts.length == 3 && method.equals("DELETE")) { machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];
             if (parts[3].equals("default") && method.equals("POST")) { body(e); machineHosts.makeDefault(id); json(e, 200, machineHosts.view()); return; }
@@ -238,10 +250,12 @@ final class ApiServer implements AutoCloseable {
         }
         if (parts.length == 4 && parts[2].equals("environments") && method.equals("PUT")) {
             JsonObject value = body(e);
+            if (!Objects.equals(string(value, "expectedEndpoint"), string(value, "endpoint"))) runtimes.workflows().requireUnusedDocker(parts[3]);
             json(e, 200, docker.updateEnvironment(parts[3], string(value, "expectedEndpoint"), string(value, "endpoint"), string(value, "description"))); return;
         }
         if (parts.length == 4 && parts[2].equals("environments") && method.equals("DELETE")) {
             JsonObject value = body(e);
+            runtimes.workflows().requireUnusedDocker(parts[3]);
             docker.removeEnvironment(parts[3], string(value, "expectedEndpoint"));
             json(e, 200, Map.of("removed", true)); return;
         }
