@@ -2,7 +2,9 @@
 
 Live board: [Runtime Bay — Product Roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) · [All repository issues](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues).
 
-The `RB-E##` and `RB-S##` identifiers are stable planning IDs used in the proposal and issue titles. GitHub issue numbers are the source of truth for live tracking. Stories are open; RB-S01 is in **In review** and RB-S08 is **In progress**, while the remaining stories are in **Backlog** pending refinement; priorities and milestones describe proposed order, not dates or commitments. Dependencies below are linked as native GitHub “blocked by” relationships.
+The `RB-E##` and `RB-S##` identifiers are stable planning IDs used in the proposal and issue titles. GitHub issue numbers are the source of truth for live tracking. Stories are open; RB-S01 and RB-S02 are **In review**, and RB-S08 is **In progress**, while the remaining stories are in **Backlog** pending refinement; priorities and milestones describe proposed order, not dates or commitments. Dependencies below are linked as native GitHub “blocked by” relationships.
+
+Implementation reviews: [#30 — workflow foundation and Go worker prototype](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/30), then [#31 — environment resource bindings](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/31). PR #31 is stacked on #30; retarget it to `main` after the foundation merges.
 
 ## Epics
 
