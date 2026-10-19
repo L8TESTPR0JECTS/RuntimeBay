@@ -48,8 +48,9 @@ final class WorkflowContainers {
         Link link = find(projectId, id); var updated = new ArrayList<>(links); updated.remove(link); commit(updated);
     }
     private synchronized Link find(String projectId, String id) { return list(projectId).stream().filter(link -> link.id().equals(id)).findFirst().orElseThrow(() -> new ApiException(404, "Workflow container not found")); }
-    List<Status> status(String projectId) {
-        List<Link> current = list(projectId); Map<List<String>, DockerModels.Overview> hosts = new HashMap<>(); Map<List<String>, String> errors = new HashMap<>();
+    List<Status> status(String projectId) { return status(list(projectId)); }
+    List<Status> status(List<Link> current) {
+         Map<List<String>, DockerModels.Overview> hosts = new HashMap<>(); Map<List<String>, String> errors = new HashMap<>();
         for (Link link : current) {
             var key = List.of(link.context(), link.endpoint());
             if (!hosts.containsKey(key) && !errors.containsKey(key)) try { hosts.put(key, docker.overview(link.context(), link.endpoint())); }
@@ -65,7 +66,11 @@ final class WorkflowContainers {
     }
     void action(String projectId, String id, String action) {
         if (!List.of("start", "stop", "restart", "resume").contains(action)) throw new ApiException(404, "Workflow container action not found");
-        Link link = find(projectId, id); docker.action(link.context(), link.endpoint(), link.containerId(), action.equals("resume") ? "unpause" : action);
+        action(find(projectId, id), action);
+    }
+    void action(Link link, String action) {
+        if (!List.of("start", "stop", "restart", "resume").contains(action)) throw new ApiException(404, "Workflow container action not found");
+        docker.action(link.context(), link.endpoint(), link.containerId(), action.equals("resume") ? "unpause" : action);
     }
     private void commit(List<Link> updated) throws IOException {
         Path temporary = Files.createTempFile(file.getParent(), "workflow-containers-", ".tmp");

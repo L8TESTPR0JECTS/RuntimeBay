@@ -107,7 +107,7 @@ class DockerApiTest {
         assertEquals(200, updated.statusCode()); assertTrue(updated.body().contains("ssh://alek@helfer:2222"));
         assertEquals(409, client.send(request("/environments/remote", true).header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString()).statusCode());
     }
-    @Test void removesHostMetadataWithAuthenticationAndRetainsWorkflowLinks() throws Exception {
+    @Test void requiresResolvingWorkflowBindingsBeforeRemovingHostMetadata() throws Exception {
         String body = "{\"expectedEndpoint\":\"" + DockerServiceTest.REMOTE + "\"}";
         for (boolean authenticated : new boolean[]{false, true}) {
             var builder = request("/environments/remote", authenticated).header("Content-Type", "application/json");
@@ -119,9 +119,13 @@ class DockerApiTest {
         var link = workflows.record(project, "remote", DockerServiceTest.REMOTE, DockerServiceTest.ID, "api", "nginx");
         fixture.calls.clear();
         var removed = client.send(request("/environments/remote", true).header("Content-Type", "application/json").method("DELETE", HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(409, removed.statusCode()); assertTrue(fixture.contexts.containsKey("remote"));
+        assertEquals(link, workflows.list(project).getFirst()); assertTrue(fixture.calls.isEmpty());
+        workflows.remove(project, link.id());
+        removed = client.send(request("/environments/remote", true).header("Content-Type", "application/json").method("DELETE", HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
         assertEquals(200, removed.statusCode()); assertTrue(removed.body().contains("true"));
         assertFalse(fixture.contexts.containsKey("remote")); assertTrue(fixture.running);
-        assertEquals(link, workflows.list(project).getFirst());
+        assertTrue(workflows.list(project).isEmpty());
         assertTrue(fixture.calls.stream().allMatch(a -> a.getFirst().equals("context")));
     }
     @Test void workflowContainerEndpointsAuthenticatePersistAndUnlinkWithoutDockerMutation() throws Exception {

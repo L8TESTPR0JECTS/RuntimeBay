@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, WorkflowView, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
+import { Environments } from './environments';
 import { WorkflowContainers } from './workflow-containers';
 import { Databases } from './databases';
 import { Containers } from './containers';
@@ -16,7 +17,7 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
@@ -43,6 +44,8 @@ class App implements OnDestroy {
   project = computed(() => this.projects().find(p => p.id === this.projectId()) || null);
   workflow = computed(() => this.workflows().find(w => w.definition.projectId === this.projectId()) || null);
   environmentName = computed(() => this.workflow()?.definition.environments.find(e => e.id === this.workflow()?.definition.defaultEnvironmentId)?.name || 'Local');
+  workflowActive = computed(() => this.project()?.services.some(s => this.active(s)) ?? false);
+  workflowSaved(value: WorkflowView) { this.workflows.update(list => list.map(w => w.definition.id === value.definition.id ? value : w)); }
   canStartAll = computed(() => !!this.workflow() && (this.project()?.services.filter(s => !this.active(s)).every(s => this.canStart(s)) ?? false));
   service = computed(() => this.project()?.services.find(s => s.id === this.serviceId()) || null);
   running = computed(() => this.projects().flatMap(p => p.services).filter(s => this.active(s)).length);
@@ -176,7 +179,7 @@ class App implements OnDestroy {
     this.pending.update(ids => [...ids, service.id]); this.error.set('');
     this.selectService(service.id);
     try {
-      await this.api(`/projects/${project.id}/services/${service.id}/${action}`, 'POST', {});
+      await this.api(`/projects/${project.id}/services/${service.id}/${action}`, 'POST', { environmentId: this.workflow()?.definition.defaultEnvironmentId, workflowRevision: this.workflow()?.revision });
       await this.refresh();
     } catch (e) { this.error.set((e as Error).message); }
     finally { this.pending.update(ids => ids.filter(id => id !== service.id)); releaseLoading(); }

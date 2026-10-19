@@ -1,5 +1,5 @@
 <section class="workflow-containers" [attr.inert]="open() ? '' : null">
-  <div class="section-heading"><div><h2>Containers <span class="count">{{ links().length }}</span></h2><p>The Docker dependencies in this workflow.</p></div><button class="primary" (click)="show()">＋ Link container</button></div>
+  <div class="section-heading"><div><h2>Containers <span class="count">{{ links().length }}</span></h2><p>The Docker dependencies for the selected environment.</p></div><button class="primary" (click)="show()">＋ Link container</button></div>
   @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="load()">Retry</button></div> }
   @if (!links().length) { <div class="workflow-container-empty"><span aria-hidden="true">▤</span><div><strong>{{ loading() ? 'Loading linked containers…' : 'Bring your dependencies into the workflow.' }}</strong><p>Link Kafka, databases, caches, or any existing container on your Docker hosts.</p></div></div> }
   <div class="workflow-container-list">
@@ -7,7 +7,7 @@
       @let current = state(link);
       <article class="workflow-container-card"><div class="workflow-container-info"><span class="eyebrow">{{ link.endpoint.startsWith('unix://') ? 'This Mac' : link.context }}</span><h3>{{ link.name }}</h3><code>{{ link.image }}</code><small [title]="link.endpoint">{{ link.endpoint }}</small><code class="container-identity" [title]="link.containerId">{{ link.containerId.slice(0, 12) }}</code></div>
         <div class="workflow-container-state"><span class="status" [class.running]="current?.state === 'running'"><i></i>{{ current?.state || 'Checking…' }}</span><small>{{ current?.status }}</small>@if (current?.ports) { <code>{{ current!.ports }}</code> }@if (current?.error) { <p class="form-error">{{ current!.error }}</p> }</div>
-        <div class="workflow-container-actions"><button class="text-button" (click)="action(link, 'unlink')" [disabled]="pending().includes(link.id)" title="Remove this link; keep the Docker container">Unlink</button>
+        <div class="workflow-container-actions"><button class="text-button" (click)="action(link, 'unlink')" [disabled]="pending().includes(link.id)" title="Remove this resource from all environments; keep the Docker container">Unlink</button>
           @if (current?.state === 'running') { <button class="secondary" (click)="action(link, 'restart')" [disabled]="pending().includes(link.id)">Restart</button><button class="stop-button" (click)="action(link, 'stop')" [disabled]="pending().includes(link.id)">■ Stop</button> }
           @else if (current?.state === 'paused') { <button class="primary" (click)="action(link, 'resume')" [disabled]="pending().includes(link.id)">Resume</button> }
           @else { <button class="start-button" (click)="action(link, 'start')" [disabled]="pending().includes(link.id) || !current || current.state === 'missing' || current.state === 'unavailable'">▷ Start</button> }
@@ -15,7 +15,7 @@
       </article>
     }
   </div>
-  @if (links().length) { <p class="resource-note">Containers keep running when Runtime Bay closes. Service controls above apply to services; each container has its own controls.</p> }
+  @if (links().length) { <p class="resource-note">Unlink removes this resource from every environment. Containers keep running when Runtime Bay closes. Service controls above apply to services; each container has its own controls.</p> }
 </section>
 @if (open()) {
   <div class="modal-backdrop" (click)="dismiss()"><section class="modal workflow-container-modal" role="dialog" aria-modal="true" aria-labelledby="workflow-container-title" (click)="$event.stopPropagation()">

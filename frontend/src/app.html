@@ -54,7 +54,7 @@
       } @else {
         @if (workflow(); as w) {
           <section class="workflow-targets" aria-labelledby="workflow-targets-title">
-            <div class="section-heading"><div><h2 id="workflow-targets-title">Resource targets <span class="count">{{ w.resources.length }}</span></h2><p>Bindings in {{ environmentName() }}. Each resource keeps its own target.</p></div></div>
+            <div class="section-heading"><div><h2 id="workflow-targets-title">Resource targets <span class="count">{{ w.resources.length }}</span></h2><p>Bindings in {{ environmentName() }}. Each resource keeps its own target.</p></div><app-environments [workflow]="w" [session]="sessionToken" [active]="workflowActive()" (saved)="workflowSaved($event)"></app-environments></div>
             @if (!w.resources.length) { <p class="workflow-target-empty">Add a service or link a container to build this workflow.</p> }
             @for (r of w.resources; track r.id) {
               <div class="workflow-target-row" [class.unresolved]="r.status === 'unresolved' || r.status === 'unsupported'">
@@ -95,7 +95,7 @@
             </div>
           }
         </section>
-        <app-workflow-containers [projectId]="project()!.id" [session]="sessionToken"></app-workflow-containers>
+        <app-workflow-containers [projectId]="project()!.id" [session]="sessionToken" [environmentId]="workflow()?.definition?.defaultEnvironmentId || ''" [workflowRevision]="workflow()?.revision || ''"></app-workflow-containers>
         @if (service(); as s) {
           <section class="inspector"><div class="inspector-heading"><div><span class="eyebrow">RUNTIME INSPECTOR</span><h2>{{ s.name }} <span class="inspector-state">{{ s.pid ? 'PID ' + s.pid : s.state }}</span></h2></div><div class="section-actions"><button class="text-button" (click)="openService(s)" [disabled]="active(s) || busy(s)">Edit service</button><button class="text-button" (click)="askDelete()" [disabled]="active(s) || busy(s)" aria-label="Remove service">Remove</button></div></div>
             @if (s.portInfo; as info) {

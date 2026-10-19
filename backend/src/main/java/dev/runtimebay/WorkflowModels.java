@@ -8,7 +8,10 @@ final class WorkflowModels {
     record MachineReference(String id) {}
     record DockerConnection(String id, String context, String endpoint, String machineId) {}
     record Resource(String id, String type, String sourceId, String name, String ownership) {}
-    record Target(String kind, String id) {}
+    record Target(String kind, String id, String linkId) {
+        Target(String kind, String id) { this(kind, id, null); }
+    }
+    record ContainerOption(String id, String name, String image, DockerConnection connection) {}
     record Binding(String id, String environmentId, String resourceId, Target target) {}
     record Workflow(String id, String projectId, String name, String defaultEnvironmentId,
                     List<Environment> environments, List<MachineReference> machines,
@@ -24,6 +27,6 @@ final class WorkflowModels {
     record Registry(int version, List<Workflow> workflows) {}
     record BindingView(String id, String resourceId, String name, String type, String targetKind,
                        String targetId, String targetName, String status, String detail) {}
-    record View(Workflow definition, List<BindingView> resources) {}
+    record View(Workflow definition, List<BindingView> resources, String revision) {}
     private WorkflowModels() {}
 }

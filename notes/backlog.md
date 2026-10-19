@@ -109,7 +109,7 @@ Acceptance criteria:
 
 ### RB-S02 — Bind resources per environment
 
-**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** Proposed  
+**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** Implemented; in review
 **Depends on:** RB-S01
 
 As a developer, I want Local, Staging, or Production configurations to map each resource to its own target, so an environment can span multiple machines.
@@ -120,6 +120,8 @@ Acceptance criteria:
 2. In one Gobble environment, bind a service to This Mac, a database to Helfer, and Kafka to another saved target; persist and reopen those bindings.
 3. Changing environment shows the effective target and configuration changes before execution and preserves other environments’ mappings.
 4. Removing an in-use host or Docker connection is blocked or requires explicit resolution of affected bindings; bindings are never silently reassigned.
+
+**Implementation:** Environments editor with reviewed changes, independent machine/container bindings, pinned container controls, optimistic revisions, and in-use target guards. Database dependencies currently bind as saved database containers; native CloudBeaver connection resources remain attachment/reconciliation work. Service commands/directories/ports stay shared; remote service execution remains gated on RB-S08. See [workflow model](../docs/workflow-model.md).
 
 <a id="rb-s03"></a>
 

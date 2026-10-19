@@ -45,21 +45,62 @@ final class WorkflowStore {
             throw new ApiException(400, "Edit service definitions and container links through their existing controls; workflow resources must retain their source identities");
         Map<String, DockerConnection> connections = new HashMap<>();
         for (DockerConnection connection : current.dockerConnections()) connections.put(connection.id(), connection);
-        if (connections.size() != value.dockerConnections().size()) throw new ApiException(400, "Docker connection references must match linked containers");
+        for (var option : containerOptions()) connections.putIfAbsent(option.connection().id(), option.connection());
         for (DockerConnection connection : value.dockerConnections()) {
             DockerConnection existing = connections.get(connection.id());
             if (existing == null || !existing.context().equals(connection.context()) || !existing.endpoint().equals(connection.endpoint()))
-                throw new ApiException(400, "Docker endpoint identities cannot be retargeted through a workflow");
+                throw new ApiException(400, "Choose an existing linked container; Docker endpoint identities cannot be retargeted through a workflow");
         }
-        // Container links retain their pinned Docker connection in every environment.
-        for (Binding binding : value.bindings()) {
-            Resource resource = value.resources().stream().filter(r -> r.id().equals(binding.resourceId())).findFirst().orElseThrow();
-            if (resource.type().equals("container")) {
-                String target = current.bindings().stream().filter(b -> b.resourceId().equals(resource.id())).findFirst().orElseThrow().target().id();
-                if (!binding.target().id().equals(target)) throw new ApiException(400, "Relink a container explicitly to change its Docker target");
-            }
+        var savedLinks = readLinks();
+        for (Binding binding : value.bindings()) if (binding.target().linkId() != null) {
+            var link = savedLinks.stream().filter(l -> l.id().equals(binding.target().linkId())).findFirst().orElse(null);
+            if (link == null) {
+                if (!current.bindings().contains(binding)) throw new ApiException(409, "The selected container link is missing. Refresh and resolve the binding.");
+            } else if (!binding.target().id().equals(stable("docker", link.context() + "\0" + link.endpoint())))
+                throw new ApiException(400, "Container identity does not match its pinned Docker connection");
+        } else if (binding.target().kind().equals("docker")) {
+            var link = savedLinks.stream().filter(l -> l.id().equals(binding.resourceId())).findFirst().orElseThrow();
+            if (!binding.target().id().equals(stable("docker", link.context() + "\0" + link.endpoint())))
+                throw new ApiException(400, "Choose a container identity as well as its Docker connection");
         }
-        var next = new ArrayList<>(workflows); next.set(next.indexOf(current), value); commit(next); return value;
+        var next = new ArrayList<>(workflows); next.set(next.indexOf(current), value); commit(next); return get(id);
+    }
+
+    synchronized List<ContainerOption> containerOptions() throws IOException {
+        return readLinks().stream().map(l -> new ContainerOption(l.id(), l.name(), l.image(),
+            new DockerConnection(stable("docker", l.context() + "\0" + l.endpoint()), l.context(), l.endpoint(), null))).toList();
+    }
+    synchronized void requireUnusedMachine(String id) throws IOException {
+        for (Workflow workflow : list()) for (Binding binding : workflow.bindings()) {
+            Target target = binding.target();
+            boolean used = target.kind().equals("machine") && target.id().equals(id) || target.kind().equals("docker") && workflow.dockerConnections().stream().anyMatch(c -> c.id().equals(target.id()) && id.equals(c.machineId()));
+            if (used) throw inUse(workflow, binding);
+        }
+    }
+    synchronized void requireUnusedDocker(String context) throws IOException {
+        for (Workflow workflow : list()) for (Binding binding : workflow.bindings())
+            if (binding.target().kind().equals("docker") && workflow.dockerConnections().stream().anyMatch(c -> c.id().equals(binding.target().id()) && c.context().equals(context))) throw inUse(workflow, binding);
+    }
+    synchronized void requireUnsharedLink(String id) throws IOException {
+        for (Workflow workflow : list()) for (Binding binding : workflow.bindings())
+            if (id.equals(binding.target().linkId()) && !id.equals(binding.resourceId())) throw inUse(workflow, binding);
+    }
+    private ApiException inUse(Workflow workflow, Binding binding) {
+        String environment = workflow.environments().stream().filter(e -> e.id().equals(binding.environmentId())).findFirst().orElseThrow().name();
+        return new ApiException(409, "Target is used by " + workflow.name() + " / " + environment + ". Resolve its resource bindings before removing or changing this target.");
+    }
+    synchronized List<WorkflowContainers.Link> effectiveContainers(String projectId) throws IOException {
+        Workflow workflow = get(projectId);
+        List<WorkflowContainers.Link> links = readLinks();
+        var result = new ArrayList<WorkflowContainers.Link>();
+        for (Binding binding : workflow.bindings()) if (binding.environmentId().equals(workflow.defaultEnvironmentId()) && binding.target().kind().equals("docker")) {
+            String linkId = binding.target().linkId() == null ? binding.resourceId() : binding.target().linkId();
+            var link = links.stream().filter(l -> l.id().equals(linkId)).findFirst().orElseThrow(() -> new ApiException(409, "A selected environment container is unresolved. Review its resource binding."));
+            var connection = workflow.dockerConnections().stream().filter(c -> c.id().equals(binding.target().id())).findFirst().orElseThrow();
+            if (!connection.context().equals(link.context()) || !connection.endpoint().equals(link.endpoint())) throw new ApiException(409, "Container target changed. Resolve the binding before execution.");
+            result.add(new WorkflowContainers.Link(binding.resourceId(), projectId, link.context(), link.endpoint(), link.containerId(), link.name(), link.image()));
+        }
+        return List.copyOf(result);
     }
 
     synchronized void requireLocalService(String projectId, String serviceId) throws IOException {
@@ -70,7 +111,8 @@ final class WorkflowStore {
             throw new ApiException(409, "This service is bound to another or unresolved machine. Remote service execution is not available yet; Runtime Bay will not run it on This Mac.");
     }
 
-    View view(Workflow workflow, HostRegistry.View hosts) {
+    View view(Workflow workflow, HostRegistry.View hosts) throws IOException {
+        var links = readLinks();
         Map<String, HostRegistry.Host> machines = new HashMap<>();
         for (var host : hosts.hosts()) machines.put(host.id(), host);
         Map<String, Resource> resources = new HashMap<>();
@@ -86,14 +128,24 @@ final class WorkflowStore {
                     host == null ? "Saved machine is missing. Resolve this binding before execution." : host.local() ? "Runs on This Mac" : "Remote service execution is planned; local fallback is disabled.");
             }
             DockerConnection connection = connections.get(target.id());
+            String linkId = target.linkId() == null ? resource.id() : target.linkId();
+            var link = links.stream().filter(l -> l.id().equals(linkId)).findFirst().orElse(null);
             var machine = connection.machineId() == null ? null : machines.get(connection.machineId());
             return new BindingView(binding.id(), resource.id(), resource.name(), resource.type(), target.kind(), target.id(), connection.context(),
-                connection.machineId() != null && machine == null ? "unresolved" : "linked",
-                connection.endpoint() + (connection.machineId() != null && machine == null ? " · Saved machine reference is missing" : " · Docker connection; machine identity is separate"));
+                link == null || connection.machineId() != null && machine == null ? "unresolved" : "linked",
+                (link == null ? "Missing container link · " : link.name() + " · " + link.containerId().substring(0, 12) + " · ") + connection.endpoint() + (connection.machineId() != null && machine == null ? " · Saved machine reference is missing" : " · Docker connection; machine identity is separate"));
         }).toList();
-        return new View(workflow, views);
+        return new View(workflow, views, revision(workflow));
     }
 
+    String revision(Workflow workflow) {
+        try { return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(gson.toJson(workflow).getBytes(StandardCharsets.UTF_8))); }
+        catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+    synchronized void requireSelection(String projectId, String expected, String expectedRevision) throws IOException {
+        if (expectedRevision != null && !revision(get(projectId)).equals(expectedRevision)) throw new ApiException(409, "Resource bindings changed. Refresh before using their controls.");
+        if (expected != null && !get(projectId).defaultEnvironmentId().equals(expected)) throw new ApiException(409, "The selected environment changed. Refresh before using its controls.");
+    }
     private void reconcile() throws IOException {
         // Read and validate every legacy source before making the only migration write.
         List<WorkflowContainers.Link> links = readLinks();
@@ -128,6 +180,8 @@ final class WorkflowStore {
                 resources.add(new Resource(link.id(), "container", link.id(), link.name(), "external"));
                 defaults.put(link.id(), new Target("docker", connectionId));
             }
+            if (previous != null) for (var connection : previous.dockerConnections())
+                if (previous.bindings().stream().anyMatch(b -> b.target().kind().equals("docker") && b.target().id().equals(connection.id()) && resources.stream().anyMatch(r -> r.id().equals(b.resourceId())))) connections.putIfAbsent(connection.id(), connection);
             var bindings = new ArrayList<Binding>();
             for (Environment environment : environments) for (Resource resource : resources) {
                 Binding old = previous == null ? null : previous.bindings().stream().filter(b -> b.environmentId().equals(environment.id()) && b.resourceId().equals(resource.id())).findFirst().orElse(null);
@@ -184,7 +238,8 @@ final class WorkflowStore {
         if (!workflow.id().equals(workflow.projectId())) throw new ApiException(400, "Workflow identity must retain its project identity");
         var environments = index(workflow.environments(), Environment::id, 20);
         if (!environments.containsKey(workflow.defaultEnvironmentId())) throw new ApiException(400, "Choose a defined default environment");
-        for (var environment : environments.values()) text(environment.name(), 128);
+        Set<String> names = new HashSet<>();
+        for (var environment : environments.values()) { text(environment.name(), 128); if (!names.add(environment.name().strip().toLowerCase(Locale.ROOT))) throw new ApiException(400, "Environment names must be unique"); }
         var machines = index(workflow.machines(), MachineReference::id, 200);
         var connections = index(workflow.dockerConnections(), DockerConnection::id, 1000);
         for (var connection : connections.values()) { text(connection.context(), 1024); text(connection.endpoint(), 4096); if (connection.machineId() != null && !machines.containsKey(connection.machineId())) throw new ApiException(400, "Docker machine reference is not declared"); }
@@ -198,6 +253,7 @@ final class WorkflowStore {
         for (var binding : bindings.values()) {
             Resource resource = resources.get(binding.resourceId()); Target target = binding.target();
             if (!environments.containsKey(binding.environmentId()) || resource == null || target == null || !pairs.add(List.of(binding.environmentId(), binding.resourceId()))) throw new ApiException(400, "Invalid or duplicate resource binding");
+            if (target.linkId() != null) { id(target.linkId()); if (!target.kind().equals("docker")) throw new ApiException(400, "Only Docker targets can reference a container link"); }
             if (resource.type().equals("service") && (!"machine".equals(target.kind()) || !machines.containsKey(target.id())) || resource.type().equals("container") && (!"docker".equals(target.kind()) || !connections.containsKey(target.id()))) throw new ApiException(400, "Resource target kind or reference is invalid");
         }
         if (pairs.size() != environments.size() * resources.size()) throw new ApiException(400, "Each resource needs an explicit binding in each environment");
