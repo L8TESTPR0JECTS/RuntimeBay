@@ -57,7 +57,13 @@ interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; ab
 @Component({
   selector: 'app-terminals', standalone: true,
   template: `<section class="shell-workspace" [hidden]="!visible()">
-    <div class="shell-heading"><div><div class="eyebrow">YOUR SHELL, RIGHT HERE</div><h1>{{ selectedTab()?.name || 'Terminals' }}</h1><p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><div class="shell-name-actions">@if (renaming()) { <input #terminalName aria-label="Terminal name" maxlength="128" [value]="selectedTab()?.name || ''" (keyup.enter)="rename(terminalName.value)" (keyup.escape)="renaming.set(false)"><button class="secondary" (click)="rename(terminalName.value)">Save name</button><button class="text-button" (click)="renaming.set(false)">Cancel</button> } @else { <button class="secondary" (click)="renaming.set(true)" [disabled]="!selectedTab()">Rename terminal</button> }<span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div></div>
+    <div class="shell-heading"><div class="shell-title-area"><div class="eyebrow">YOUR SHELL, RIGHT HERE</div>
+      @if (renamingId() === workspace().selected() && selectedTab()) {
+        <div class="shell-title-editor"><input #terminalName class="shell-title-input" aria-label="Terminal name" maxlength="128" [value]="selectedTab()?.name || ''" [disabled]="savingName()" (keydown.enter)="$event.preventDefault(); rename(terminalName.value)" (keydown.escape)="$event.preventDefault(); cancelRename()"><button class="shell-title-confirm" aria-label="Save terminal name" title="Save name (Enter)" (click)="rename(terminalName.value)" [disabled]="savingName()">✓</button><button class="shell-title-cancel" aria-label="Cancel terminal rename" title="Cancel (Escape)" (click)="cancelRename()" [disabled]="savingName()">×</button></div>
+      } @else {
+        <h1><button class="shell-title-button" (click)="beginRename()" [disabled]="!selectedTab()" title="Click to rename terminal" aria-label="Rename terminal">{{ selectedTab()?.name || 'Terminals' }}</button></h1>
+      }
+      <p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div>
     @if (workspace().error()) { <div class="notice" role="alert">{{ workspace().error() }}<button (click)="workspace().error.set('')" aria-label="Dismiss terminal error">×</button></div> }
     <div #surfaces class="shell-surfaces" aria-label="Workspace terminals"></div>
     @if (!selectedTab()) { <div class="shell-empty">Choose a terminal from the sidebar, or press ＋ Terminal to open a shell.</div> }
@@ -68,10 +74,18 @@ export class Terminals implements AfterViewInit, OnDestroy {
   readonly workspace = input.required<TerminalWorkspace>();
   readonly visible = input(false);
   @ViewChild('surfaces') surfaces!: ElementRef<HTMLElement>;
-  readonly renaming=signal(false);
+  readonly renamingId=signal<string | null>(null);
+  readonly savingName=signal(false);
+  @ViewChild('terminalName') set terminalName(input: ElementRef<HTMLInputElement> | undefined) {
+    if(input) requestAnimationFrame(()=>{input.nativeElement.focus();input.nativeElement.select();});
+  }
+  beginRename() { this.renamingId.set(this.workspace().selected()); }
+  cancelRename() { if(!this.savingName())this.renamingId.set(null); }
   async rename(name: string) {
-    const id=this.workspace().selected();if(!id)return;
-    try{await this.workspace().rename(id,name);this.renaming.set(false);}catch(error){this.workspace().error.set((error as Error).message);}
+    const id=this.renamingId();if(!id || this.savingName())return;
+    this.savingName.set(true);
+    try{await this.workspace().rename(id,name);if(this.renamingId()===id)this.renamingId.set(null);}catch(error){this.workspace().error.set((error as Error).message);}
+    finally{this.savingName.set(false);}
   }
   private ready = signal(false);
   private renderers = new Map<string, Renderer>();
