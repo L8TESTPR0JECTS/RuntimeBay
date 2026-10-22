@@ -87,4 +87,19 @@ class TerminalManagerTest {
         assertEquals(12, terminals.list().size()); terminals.close(); assertTrue(terminals.list().isEmpty());
         assertThrows(ApiException.class, () -> terminals.create(null));
     }
+    @Test void renamedTabsSurviveRestartAndOpenFreshShellsOnlyWhenRequested()throws Exception{
+        var project=store.addProject("Fixture",temporary.toString());var created=terminals.create(project.id());
+        terminals.rename(created.id(),"API console");terminals.input(created.id(),"export NEVER_PERSIST_ME=secret-terminal-value-9104; printf '\\nSAVED_TEST:%s\\n' yes\n");await(created.id(),"SAVED_TEST:yes");
+        terminals.close();
+        Path launcher=Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER","../.build/runtimebay-launcher")).resolveSibling("runtimebay-terminal");
+        terminals=new TerminalManager(store,launcher);var restored=terminals.list().getFirst();
+        assertEquals(created.id(),restored.id());assertEquals("API console",restored.name());assertFalse(restored.connected());
+        assertThrows(ApiException.class,()->terminals.input(restored.id(),"echo must-not-run"));
+        assertTrue(terminals.open(restored.id(),HostRegistry.LOCAL,null).connected());
+        terminals.input(restored.id(),"printf '\\nFRESH_TEST:%s\\n' \"${NEVER_PERSIST_ME-unset}\"\n");assertTrue(await(restored.id(),"FRESH_TEST:unset").contains("FRESH_TEST:unset"));
+        String saved=Files.readString(store.directory().resolve("terminals.json"));assertFalse(saved.contains("secret-terminal-value-9104"));assertFalse(saved.contains("SAVED_TEST"));
+        assertThrows(ApiException.class,()->terminals.rename(restored.id(),"bad\nname"));
+        terminals.remove(restored.id());terminals.close();terminals=new TerminalManager(store,launcher);assertTrue(terminals.list().isEmpty());
+    }
+
 }

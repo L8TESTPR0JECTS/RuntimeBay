@@ -302,6 +302,11 @@ final class ApiServer implements AutoCloseable {
                 json(e, 201, host.local() ? terminals.create(string(value, "projectId")) : terminals.createRemote(host, hostSshControls)); return;
             }
         }
+        if(parts.length==3 && method.equals("PUT")){json(e,200,terminals.rename(parts[2],string(body(e),"name")));return;}
+        if(parts.length==4 && parts[3].equals("open") && method.equals("POST")){
+            body(e);var tab=terminals.definition(parts[2]);var host=machineHosts.get(tab.hostId());hostPasswords.restore(host);
+            json(e,200,terminals.open(tab.id(),host,hostSshControls));return;
+        }
         if (parts.length == 3 && method.equals("DELETE")) { terminals.remove(parts[2]); json(e, 200, Map.of("ok", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];

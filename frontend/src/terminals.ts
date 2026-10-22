@@ -2,7 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, effect, inp
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 
-export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null; hostId: string; hostName: string }
+export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null; hostId: string; hostName: string; connected?: boolean }
 interface Output { data: string; next: number; truncated: boolean; exitCode: number | null }
 
 /** Owns the tab collection; the backend owns shell lifetimes across view changes and reloads. */
@@ -36,6 +36,9 @@ export class TerminalWorkspace {
     } catch (error) { this.error.set((error as Error).message); return false; }
     finally { this.creating.set(false); }
   }
+  async rename(id: string,name: string) {
+    const tab=await this.api<ShellTab>('/'+id,'PUT',{name});this.tabs.update(tabs=>tabs.map(value=>value.id===id?tab:value));
+  }
   async close(id: string) {
     if (this.closing().includes(id)) return;
     this.closing.update(ids => [...ids, id]); this.error.set('');
@@ -54,7 +57,7 @@ interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; ab
 @Component({
   selector: 'app-terminals', standalone: true,
   template: `<section class="shell-workspace" [hidden]="!visible()">
-    <div class="shell-heading"><div><div class="eyebrow">YOUR SHELL, RIGHT HERE</div><h1>{{ selectedTab()?.name || 'Terminals' }}</h1><p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div>
+    <div class="shell-heading"><div><div class="eyebrow">YOUR SHELL, RIGHT HERE</div><h1>{{ selectedTab()?.name || 'Terminals' }}</h1><p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><div class="shell-name-actions">@if (renaming()) { <input #terminalName aria-label="Terminal name" maxlength="128" [value]="selectedTab()?.name || ''" (keyup.enter)="rename(terminalName.value)" (keyup.escape)="renaming.set(false)"><button class="secondary" (click)="rename(terminalName.value)">Save name</button><button class="text-button" (click)="renaming.set(false)">Cancel</button> } @else { <button class="secondary" (click)="renaming.set(true)" [disabled]="!selectedTab()">Rename terminal</button> }<span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div></div>
     @if (workspace().error()) { <div class="notice" role="alert">{{ workspace().error() }}<button (click)="workspace().error.set('')" aria-label="Dismiss terminal error">×</button></div> }
     <div #surfaces class="shell-surfaces" aria-label="Workspace terminals"></div>
     @if (!selectedTab()) { <div class="shell-empty">Choose a terminal from the sidebar, or press ＋ Terminal to open a shell.</div> }
@@ -65,6 +68,11 @@ export class Terminals implements AfterViewInit, OnDestroy {
   readonly workspace = input.required<TerminalWorkspace>();
   readonly visible = input(false);
   @ViewChild('surfaces') surfaces!: ElementRef<HTMLElement>;
+  readonly renaming=signal(false);
+  async rename(name: string) {
+    const id=this.workspace().selected();if(!id)return;
+    try{await this.workspace().rename(id,name);this.renaming.set(false);}catch(error){this.workspace().error.set((error as Error).message);}
+  }
   private ready = signal(false);
   private renderers = new Map<string, Renderer>();
   private observer?: ResizeObserver;
@@ -85,7 +93,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
       // Keep existing emulators mounted, preserving scrollback and alternate screens.
       for (const tab of tabs) {
         const renderer = this.renderers.get(tab.id);
-        if (renderer) renderer.element.hidden = !visible || selected !== tab.id;
+        if (renderer) { renderer.element.hidden = !visible || selected !== tab.id; renderer.terminal.textarea?.setAttribute('aria-label', 'Terminal input · ' + tab.name); }
       }
       if (visible && selected) {
         const tab = tabs.find(tab => tab.id === selected);
@@ -123,6 +131,11 @@ export class Terminals implements AfterViewInit, OnDestroy {
   }
   private async mount(tab: ShellTab) {
     this.mounting.add(tab.id);
+    if(tab.connected === false)try{
+      const opened=await this.workspace().api<ShellTab>('/'+tab.id+'/open','POST',{});
+      this.workspace().tabs.update(tabs=>tabs.map(value=>value.id===tab.id?opened:value));
+    }catch(error){this.mounting.delete(tab.id);throw error;}
+
     let TerminalClass: typeof import('@xterm/xterm').Terminal, FitClass: typeof import('@xterm/addon-fit').FitAddon;
     try {
       const [xterm, addon] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')]);
