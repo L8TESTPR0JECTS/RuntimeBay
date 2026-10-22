@@ -9,8 +9,14 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Session-only SSH passwords. The askpass helper receives a random capability, never the password in argv or environment. */
+/** In-memory SSH passwords with opt-in Keychain persistence. Askpass receives a capability, never the password in argv or environment. */
 final class HostPasswords implements AutoCloseable {
+    interface Persistence {
+        boolean available(); boolean has(HostRegistry.Host host); String read(HostRegistry.Host host);
+        void write(HostRegistry.Host host,String password); void delete(HostRegistry.Host host);
+    }
+    record Authentication(boolean sessionPassword, boolean remembered, boolean keychainAvailable) {}
+    private final Persistence persistence;
     private record Secret(String token, char[] value) {}
     private final Map<String, Secret> secrets = new HashMap<>();
     private final Path helper, socket;
@@ -21,7 +27,10 @@ final class HostPasswords implements AutoCloseable {
     private final Semaphore permits = new Semaphore(16);
     private boolean closed;
     HostPasswords(Path directory, Path helper) throws IOException {
-        this.helper = helper; socket = directory.resolve("a");
+        this(directory, helper, new HostKeychain(helper.resolveSibling("runtimebay-keychain")));
+    }
+    HostPasswords(Path directory, Path helper, Persistence persistence) throws IOException {
+        this.persistence=persistence; this.helper = helper; socket = directory.resolve("a");
         server = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
         server.bind(UnixDomainSocketAddress.of(socket));
         Files.setPosixFilePermissions(socket, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
@@ -35,6 +44,25 @@ final class HostPasswords implements AutoCloseable {
             } } catch (IOException ignored) { /* Closing the app closes accept. */ }
         });
     }
+    Authentication authentication(HostRegistry.Host host) {
+        boolean available=persistence.available();
+        return new Authentication(has(host.id()), !host.local() && available && persistence.has(host),available);
+    }
+    void restore(HostRegistry.Host host) {
+        if(host.local() || has(host.id()) || !persistence.available())return;
+        String password=persistence.read(host); if(password!=null)set(host.id(),password);
+    }
+    void update(HostRegistry.Host host,String password,boolean remember,boolean forget) {
+        validate(password);
+        if(forget){if(persistence.available())persistence.delete(host);clear(host.id());}
+        if(password!=null&&!password.isEmpty()){
+            if(remember)persistence.write(host,password);
+            // Replacing a remembered password with session-only must remove its old persisted value.
+            else if(persistence.available())persistence.delete(host);
+            set(host.id(),password);
+        }
+    }
+    void forget(HostRegistry.Host host){try{if(persistence.available())persistence.delete(host);}finally{clear(host.id());}}
     static void validate(String password) {
         if (password != null && (password.length() > 4096 || password.indexOf('\0') >= 0 || password.indexOf('\n') >= 0 || password.indexOf('\r') >= 0))
             throw new ApiException(400, "Enter an SSH password without line breaks, up to 4096 characters");

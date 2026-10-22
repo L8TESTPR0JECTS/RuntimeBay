@@ -35,7 +35,8 @@ export class Hosts implements OnInit, OnDestroy {
   modal = signal<'host' | 'remove' | null>(null);
   editing = signal<Machine | null>(null);
   removing = signal<Machine | null>(null);
-  form = { name: '', address: '', user: '', port: null as number | null, password: '', clearPassword: false };
+  authentication = signal<{sessionPassword: boolean; remembered: boolean; keychainAvailable: boolean} | null>(null);
+  form = { name: '', address: '', user: '', port: null as number | null, password: '', clearPassword: false, rememberPassword: false };
   private controller = new AbortController();
   private revision = 0;
   private timer?: ReturnType<typeof setInterval>;
@@ -69,7 +70,7 @@ export class Hosts implements OnInit, OnDestroy {
     return host.local ? 'Local machine' : `${host.user ? host.user + '@' : ''}${host.address}${host.port ? ':' + host.port : ''}`;
   }
   async viewHost(host: Machine) {
-    this.revision++; this.selectedId.set(host.id); this.filter.set(''); this.tab.set('tooling'); this.status.set({ state: 'idle', inventory: null, error: null });
+    this.revision++; this.authentication.set(null); this.selectedId.set(host.id); void this.readAuthentication(host); this.filter.set(''); this.tab.set('tooling'); this.status.set({ state: 'idle', inventory: null, error: null });
     const current = await this.readStatus();
     if (current?.state === 'idle' && this.selectedId() === host.id) void this.inspect();
   }
@@ -81,6 +82,13 @@ export class Hosts implements OnInit, OnDestroy {
       return state;
     } catch (e) { if (!this.controller.signal.aborted && revision === this.revision) this.error.set((e as Error).message); return; }
   }
+  private async readAuthentication(host: Machine) {
+    if(host.local) return;
+    try { const value = await this.api<{sessionPassword: boolean; remembered: boolean; keychainAvailable: boolean}>('/' + host.id + '/authentication');
+      if (this.selectedId() === host.id || this.editing()?.id === host.id) { this.authentication.set(value); if (this.editing()?.id === host.id) this.form.rememberPassword = value.remembered; }
+    } catch { /* Credential availability is advisory; never prevents using keys. */ }
+  }
+  async reconnect(host: Machine) { this.open(host); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.machine-modal input[type=password]')?.focus()); }
   async inspect() {
     const id = this.selectedId(), revision = this.revision; if (!id || this.status().state === 'scanning') return;
     this.error.set('');
@@ -90,8 +98,8 @@ export class Hosts implements OnInit, OnDestroy {
   back() { this.revision++; this.selectedId.set(null); this.error.set(''); }
   open(host?: Machine) {
     this.previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    this.editing.set(host || null); this.form = host ? { name: host.name, address: host.address, user: host.user, port: host.port, password: '', clearPassword: false } : { name: '', address: '', user: '', port: null, password: '', clearPassword: false };
-    this.formError.set(''); this.modal.set('host'); setTimeout(() => document.querySelector<HTMLInputElement>('.machine-modal input')?.focus(), 0);
+    this.editing.set(host || null); this.form = host ? { name: host.name, address: host.address, user: host.user, port: host.port, password: '', clearPassword: false, rememberPassword: false } : { name: '', address: '', user: '', port: null, password: '', clearPassword: false, rememberPassword: false };
+    this.authentication.set(null); if(host) void this.readAuthentication(host); this.formError.set(''); this.modal.set('host'); setTimeout(() => document.querySelector<HTMLInputElement>('.machine-modal input')?.focus(), 0);
   }
   close() { if (this.saving()) return; this.form.password = ''; this.modal.set(null); setTimeout(() => this.previousFocus?.focus(), 0); }
   async save() {
@@ -99,7 +107,7 @@ export class Hosts implements OnInit, OnDestroy {
     this.saving.set(true); this.formError.set('');
     try {
       const edited = this.editing(); await this.tasks.run('Saving host…', () => this.api(edited ? '/' + edited.id : '', edited ? 'PUT' : 'POST', { ...this.form, name: this.form.name.trim(), address: this.form.address.trim(), user: this.form.user.trim() }));
-      this.form.password = ''; await this.load(); this.modal.set(null);
+      this.form.password = ''; await this.load(); this.modal.set(null); if(edited) void this.readAuthentication(edited);
       if (edited?.id === this.selectedId()) { this.status.set({ state: 'idle', inventory: null, error: null }); void this.inspect(); }
     } catch (e) { this.formError.set((e as Error).message); }
     finally { this.saving.set(false); }

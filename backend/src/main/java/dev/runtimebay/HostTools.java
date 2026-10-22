@@ -63,7 +63,7 @@ final class HostTools implements AutoCloseable {
             args.add("\"${SHELL:-/bin/sh}\" -lic " + quote(SCRIPT));
         }
         Result result = runner == null ? run(args, host.id()) : runner.run(args);
-        if (result.exitCode() != 0) throw new ApiException(502, host.local() ? "Could not inspect this Mac: " + tail(result.output()) : "SSH inspection failed. Enter your password in Edit host and retry, or sign in through this host's terminal and keep it open. SSH keys or an agent work too. Verify unknown host keys in your normal Terminal first. " + tail(result.output()));
+        if (result.exitCode() != 0) throw new ApiException(502, host.local() ? "Could not inspect this Mac: " + tail(result.output()) : "SSH inspection failed. Use Enter credentials to supply a password; select Remember in macOS Keychain to reconnect after restarting the app. Alternatively use SSH keys/an agent or keep an authenticated host terminal open. Verify unknown host keys in Terminal first. " + tail(result.output()));
         return parse(host.id(), result.output());
     }
     static Inventory parse(String hostId, String output) {

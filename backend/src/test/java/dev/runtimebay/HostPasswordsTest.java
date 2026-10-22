@@ -65,4 +65,54 @@ class HostPasswordsTest {
             Files.delete(Path.of(expanded));
         } finally { Files.delete(directory); }
     }
+    static final class MemoryKeychain implements HostPasswords.Persistence {
+        final Map<String,String> values=new HashMap<>();
+        public boolean available(){return true;}
+        public boolean has(HostRegistry.Host host){return values.containsKey(HostKeychain.account(host));}
+        public String read(HostRegistry.Host host){return values.get(HostKeychain.account(host));}
+        public void write(HostRegistry.Host host,String password){values.put(HostKeychain.account(host),password);}
+        public void delete(HostRegistry.Host host){values.remove(HostKeychain.account(host));}
+    }
+    @Test void rememberedPasswordRestoresAfterRestartOnlyForTheSameMachineDestination()throws Exception{
+        var keychain=new MemoryKeychain();var host=new HostRegistry.Host(UUID.randomUUID().toString(),"Helfer","fixture.invalid","alek",22,false);
+        Path first=Files.createTempDirectory(Path.of("/tmp"),"rb-");
+        try(var passwords=new HostPasswords(first,helper(),keychain)){
+            passwords.update(host,"remembered-secret",true,false);assertTrue(passwords.authentication(host).remembered());
+        }finally{Files.delete(first);}
+        Path second=Files.createTempDirectory(Path.of("/tmp"),"rb-");
+        try(var passwords=new HostPasswords(second,helper(),keychain)){
+            assertFalse(passwords.has(host.id()));passwords.restore(host);assertTrue(passwords.has(host.id()));
+            assertTrue(passwords.authentication(host).remembered());
+            var changed=new HostRegistry.Host(host.id(),host.name(),"replacement.invalid",host.user(),host.port(),false);
+            passwords.clear(host.id());passwords.restore(changed);assertFalse(passwords.has(host.id()));
+            passwords.update(host,"session-only-replacement",false,false);assertFalse(keychain.has(host));assertTrue(passwords.has(host.id()));
+            passwords.update(host,"remember-again",true,false);passwords.forget(host);assertFalse(keychain.has(host));assertFalse(passwords.has(host.id()));
+        }finally{Files.delete(second);}
+    }
+    @Test void sessionPasswordDoesNotPersistAndDestinationIncludesAccountAndPort()throws Exception{
+        var keychain=new MemoryKeychain();var host=new HostRegistry.Host(UUID.randomUUID().toString(),"Helfer","fixture.invalid","alek",22,false);
+        Path directory=Files.createTempDirectory(Path.of("/tmp"),"rb-");
+        try(var passwords=new HostPasswords(directory,helper(),keychain)){
+            passwords.update(host,"session-secret",false,false);assertTrue(keychain.values.isEmpty());assertTrue(passwords.has(host.id()));
+            passwords.update(host,"",false,false);assertTrue(passwords.has(host.id()));
+            passwords.forget(host);assertFalse(passwords.has(host.id()));
+        }finally{Files.delete(directory);}
+        assertNotEquals(HostKeychain.account(host),HostKeychain.account(new HostRegistry.Host(host.id(),host.name(),host.address(),"other",22,false)));
+        assertNotEquals(HostKeychain.account(host),HostKeychain.account(new HostRegistry.Host(host.id(),host.name(),host.address(),host.user(),2222,false)));
+    }
+
+    @Test void keychainWriteFailureDoesNotInstallASessionPasswordOrClaimSuccess()throws Exception{
+        var host=new HostRegistry.Host(UUID.randomUUID().toString(),"Fixture","fixture.invalid","alek",22,false);
+        HostPasswords.Persistence denied=new HostPasswords.Persistence(){
+            public boolean available(){return true;}public boolean has(HostRegistry.Host h){return false;}public String read(HostRegistry.Host h){return null;}
+            public void write(HostRegistry.Host h,String p){throw new ApiException(503,"Keychain denied");}public void delete(HostRegistry.Host h){throw new ApiException(503,"Keychain denied");}
+        };
+        Path directory=Files.createTempDirectory(Path.of("/tmp"),"rb-");
+        try(var passwords=new HostPasswords(directory,helper(),denied)){
+            assertEquals(503,assertThrows(ApiException.class,()->passwords.update(host,"not-saved",true,false)).status);
+            assertFalse(passwords.authentication(host).remembered());assertFalse(passwords.has(host.id()));
+            passwords.set(host.id(),"existing-session");assertThrows(ApiException.class,()->passwords.forget(host));assertFalse(passwords.has(host.id()));
+        }finally{Files.delete(directory);}
+    }
+
 }
