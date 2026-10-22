@@ -276,17 +276,18 @@ final class ApiServer implements AutoCloseable {
             var previous = id == null ? null : machineHosts.get(id);
             if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) { runtimes.workflows().requireUnusedMachine(id); attachments.protectHost(id); }
             var saved = machineHosts.save(id, string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port);
-            if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.clear(saved.id());
-            if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.clear(saved.id());
-            if (password != null && !password.isEmpty()) hostPasswords.set(saved.id(), password);
+            if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.forget(previous);
+            if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.forget(saved);
+            hostPasswords.update(saved, password, value.has("rememberPassword") && value.get("rememberPassword").getAsBoolean(), false);
             json(e, parts.length == 2 ? 201 : 200, saved); return;
         }
-        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); attachments.protectHost(parts[2]); machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); attachments.protectHost(parts[2]); hostPasswords.forget(machineHosts.get(parts[2])); machineHosts.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];
+            if (parts[3].equals("authentication") && method.equals("GET")) { json(e, 200, hostPasswords.authentication(machineHosts.get(id))); return; }
             if (parts[3].equals("default") && method.equals("POST")) { body(e); machineHosts.makeDefault(id); json(e, 200, machineHosts.view()); return; }
             if (parts[3].equals("inventory") && method.equals("GET")) { json(e, 200, machineHosts.status(id)); return; }
-            if (parts[3].equals("inventory") && method.equals("POST")) { body(e); json(e, 202, machineHosts.inspect(id)); return; }
+            if (parts[3].equals("inventory") && method.equals("POST")) { body(e); hostPasswords.restore(machineHosts.get(id)); json(e, 202, machineHosts.inspect(id)); return; }
         }
         throw new ApiException(404, "Host endpoint not found");
     }
@@ -297,6 +298,7 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("POST")) {
                 JsonObject value = body(e); String hostId = string(value, "hostId");
                 var host = machineHosts.get(hostId == null || hostId.isBlank() ? machineHosts.view().defaultHostId() : hostId);
+                hostPasswords.restore(host);
                 json(e, 201, host.local() ? terminals.create(string(value, "projectId")) : terminals.createRemote(host, hostSshControls)); return;
             }
         }
