@@ -25,7 +25,7 @@
           </label>
         }
       </div>
-      <p class="resource-note">Link containers in any workflow first to make them available here. Database containers can be bound just like Kafka or a cache. SQL connections stay inside CloudBeaver. Service commands, directories, and ports are shared definitions; this editor changes targets.</p>
+      <p class="resource-note">Link containers in any workflow first to make them available here. Database containers can be bound just like Kafka or a cache. SQL connections stay inside CloudBeaver. Service commands, directories, and ports are shared definitions; this editor changes targets. Duplicating here copies service/container target bindings. Attach external service, database, and terminal references separately in each environment.</p>
     } @else {
       <ul class="environment-review">@for (change of changes(); track $index) { <li>{{ change }}</li> }@empty { <li>No changes.</li> }</ul>
       <p class="resource-note">Remote machine bindings remain visible but cannot start services yet. Container controls will address the selected container ID on its pinned Docker endpoint.</p>

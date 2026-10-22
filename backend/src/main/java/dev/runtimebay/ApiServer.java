@@ -20,6 +20,7 @@ final class ApiServer implements AutoCloseable {
     private final AppearanceStore appearance;
     private final TerminalManager terminals;
     private final WorkflowContainers workflowContainers;
+    private final WorkflowAttachments attachments;
     private final DatabaseWorkspace databases;
     private final MachineHosts machineHosts;
     private final Path hostSshControls;
@@ -36,6 +37,7 @@ final class ApiServer implements AutoCloseable {
         this.store = store; this.runtimes = runtimes; this.webRoot = webRoot.toRealPath(); this.token = token; this.docker = docker;
         appearance = new AppearanceStore(store.directory());
         workflowContainers = new WorkflowContainers(store, docker);
+        attachments = new WorkflowAttachments(store, runtimes.workflows());
         hostSshControls = Files.createTempDirectory(Path.of("/tmp"), "rb-");
         Files.setPosixFilePermissions(hostSshControls, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
@@ -79,6 +81,7 @@ final class ApiServer implements AutoCloseable {
         if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
         if (path.equals("/api/hosts") || path.startsWith("/api/hosts/")) { routeHosts(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
+        if (parts.length >= 4 && parts[1].equals("workflows") && parts[3].equals("attachments")) { routeAttachments(e, parts); return; }
         if (path.equals("/api/workflows") && method.equals("GET")) {
             var workflows = runtimes.workflows();
             var hosts = machineHosts.view();
@@ -96,6 +99,8 @@ final class ApiServer implements AutoCloseable {
                 String expected = e.getRequestHeaders().getFirst("If-Match");
                 if (expected != null && !expected.equals(workflows.revision(workflows.get(parts[2])))) throw new ApiException(409, "This workflow changed while you were editing. Reopen Environments and review its latest bindings.");
                 var definition = gson.fromJson(body(e), WorkflowModels.Workflow.class);
+                WorkflowStore.validate(definition);
+                attachments.protectEnvironments(parts[2], definition);
                 json(e, 200, workflows.view(runtimes.saveWorkflow(parts[2], definition), machineHosts.view())); return;
             }
         }
@@ -172,6 +177,50 @@ final class ApiServer implements AutoCloseable {
         }
         throw new ApiException(404, "Endpoint not found");
     }
+    private Set<String> unavailableAttachmentHosts() {
+        var unavailable = new HashSet<String>();
+        for (var host : machineHosts.view().hosts()) if (machineHosts.status(host.id()).state().equals("error")) unavailable.add(host.id());
+        return unavailable;
+    }
+    private void routeAttachments(HttpExchange e, String[] parts) throws IOException {
+        String method = e.getRequestMethod(), workflowId = parts[2];
+        var workflows = runtimes.workflows(); var workflow = workflows.get(workflowId);
+        if (parts.length == 4 && method.equals("GET")) {
+            json(e, 200, Map.of("environmentId", workflow.defaultEnvironmentId(), "revision", workflows.revision(workflow), "resources", attachments.view(workflowId, machineHosts.view(), databases, unavailableAttachmentHosts()))); return;
+        }
+        if (parts.length == 5 && parts[4].equals("catalog") && method.equals("GET")) {
+            json(e, 200, new WorkflowAttachments.Catalog(attachments.choices(machineHosts.view(), workflowContainers.all()), store.list().stream().map(p -> new WorkflowAttachments.Workspace(p.id(), p.name())).toList())); return;
+        }
+        if (parts.length == 6 && parts[4].equals("databases") && method.equals("POST")) {
+            body(e); var connections = databases.savedConnections(parts[5]); attachments.refreshDatabase(parts[5], connections);
+            json(e, 200, Map.of("count", connections.size())); return;
+        }
+        if (List.of("POST", "PUT", "DELETE").contains(method)) {
+            var value = body(e);
+            String environmentId = string(value, "environmentId");
+            if (environmentId == null || string(value, "workflowRevision") == null) throw new ApiException(400, "Include the selected environment and workflow revision");
+            workflows.requireSelection(workflowId, environmentId, string(value, "workflowRevision"));
+            if (parts.length == 4 && method.equals("POST")) {
+                var source = gson.fromJson(value.get("source"), WorkflowAttachments.Source.class);
+                if (source != null && "container".equals(source.kind())) {
+                    var choice = attachments.choices(machineHosts.view(), workflowContainers.all()).stream().filter(c -> c.source().equals(source)).findFirst().orElseThrow(() -> new ApiException(409, "The saved container reference is missing. Refresh the catalog."));
+                    var link = workflowContainers.all().stream().filter(l -> l.id().equals(choice.source().sourceId()) && l.projectId().equals(choice.source().projectId())).findFirst().orElseThrow();
+                    // Copy the association only; the physical container ID and endpoint stay fixed.
+                    json(e, 201, workflowContainers.record(workflowId, link.context(), link.endpoint(), link.containerId(), link.name(), link.image())); return;
+                }
+                json(e, 201, attachments.attach(workflowId, environmentId, source, machineHosts.view(), workflowContainers.all())); return;
+            }
+            if (parts.length >= 5) attachments.requireReferenceKey(workflowId, parts[4], string(value, "referenceKey"));
+            if (parts.length == 5 && method.equals("DELETE")) { attachments.unlink(workflowId, parts[4]); json(e, 200, Map.of("unlinked", true)); return; }
+            if (parts.length == 5 && method.equals("PUT")) { json(e, 200, attachments.rebind(workflowId, parts[4], gson.fromJson(value.get("source"), WorkflowAttachments.Source.class), machineHosts.view(), workflowContainers.all())); return; }
+            if (parts.length == 6 && parts[5].equals("resolve") && method.equals("POST")) {
+                var resolved = attachments.resolve(workflowId, parts[4], machineHosts.view(), databases, unavailableAttachmentHosts());
+                if (resolved.state().equals("missing")) throw new ApiException(409, resolved.detail());
+                json(e, 200, resolved); return;
+            }
+        }
+        throw new ApiException(404, "Attachment endpoint not found");
+    }
     private void routeHosts(HttpExchange e, String[] parts) throws IOException {
         String method = e.getRequestMethod();
         if (parts.length == 2 && method.equals("GET")) { json(e, 200, machineHosts.view()); return; }
@@ -185,14 +234,14 @@ final class ApiServer implements AutoCloseable {
             String password = string(value, "password"); HostPasswords.validate(password);
             String id = parts.length == 2 ? null : parts[2];
             var previous = id == null ? null : machineHosts.get(id);
-            if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) runtimes.workflows().requireUnusedMachine(id);
+            if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) { runtimes.workflows().requireUnusedMachine(id); attachments.protectHost(id); }
             var saved = machineHosts.save(id, string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port);
             if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.clear(saved.id());
             if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.clear(saved.id());
             if (password != null && !password.isEmpty()) hostPasswords.set(saved.id(), password);
             json(e, parts.length == 2 ? 201 : 200, saved); return;
         }
-        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); attachments.protectHost(parts[2]); machineHosts.remove(parts[2]); hostPasswords.clear(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];
             if (parts[3].equals("default") && method.equals("POST")) { body(e); machineHosts.makeDefault(id); json(e, 200, machineHosts.view()); return; }

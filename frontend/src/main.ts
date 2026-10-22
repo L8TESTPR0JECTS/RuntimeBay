@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, WorkflowView, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
+import { Attachments, AttachmentSource } from './attachments';
 import { Environments } from './environments';
 import { WorkflowContainers } from './workflow-containers';
 import { Databases } from './databases';
@@ -17,7 +18,7 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments, Attachments],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
@@ -80,7 +81,7 @@ class App implements OnDestroy {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     if (event.key === 'Escape' && !this.saving()) this.sheet.set(null);
-    if (this.appearance.open() || this.sheet() || document.querySelector('.workflow-container-modal')) return;
+    if (this.appearance.open() || this.sheet() || document.querySelector('[role="dialog"]')) return;
     const command = workspaceShortcut(event);
     if (command) { event.preventDefault(); this.runCommand(command); }
     if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key === ',' && !event.defaultPrevented) { event.preventDefault(); this.appearance.show(); }
@@ -151,6 +152,13 @@ class App implements OnDestroy {
       this.logs.update(entries => [...(response.truncated ? [] : entries), ...fresh].slice(-1000));
       this.scrollLogs();
     }
+  }
+  inspectAttachment(source: AttachmentSource) {
+    if (source.kind === 'terminal') { this.view.set('terminal'); void this.terminals.create(this.projectId(), source.sourceId); return; }
+    if (!this.projects().some(p => p.id === source.projectId)) { this.error.set('The source workflow is missing. Refresh or rebind this resource.'); return; }
+    this.selectProject(source.projectId);
+    if (source.kind === 'database') this.view.set('databases');
+    else { this.view.set('runtime'); this.selectService(source.sourceId); }
   }
   async newTerminal() {
     this.view.set('terminal');

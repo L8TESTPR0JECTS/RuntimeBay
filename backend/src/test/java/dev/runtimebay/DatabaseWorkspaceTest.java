@@ -23,6 +23,7 @@ class DatabaseWorkspaceTest {
     String project, origin;
     AtomicInteger launches = new AtomicInteger(), stops = new AtomicInteger(), forwarded = new AtomicInteger();
     volatile String seenCookie, seenAuthorization, seenOrigin;
+    volatile boolean connectionQuery, failConnections;
     @BeforeEach void setup() throws Exception {
         store = new ProjectStore(temporary.resolve("data")); project = store.addProject("Fixture", temporary.toString()).id();
         upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -30,7 +31,8 @@ class DatabaseWorkspaceTest {
             String path = exchange.getRequestURI().getPath(); String text;
             if (path.endsWith("api/gql")) {
                 String request = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                text = request.contains("authLogin") ? "{\"data\":{\"authLogin\":{\"authStatus\":\"SUCCESS\"}}}" : "{\"data\":{\"openSession\":{\"valid\":true}}}";
+                if (request.contains("RuntimeBaySavedConnections")) { connectionQuery = true; text = failConnections ? "{\"errors\":[{\"message\":\"private upstream failure\"}]}" : "{\"data\":{\"userConnections\":[{\"id\":\"mysql-id\",\"name\":\"MySQL\",\"projectId\":\"general\",\"password\":\"must-not-escape\",\"url\":\"private-url\"}]}}"; }
+                else text = request.contains("authLogin") ? "{\"data\":{\"authLogin\":{\"authStatus\":\"SUCCESS\"}}}" : "{\"data\":{\"openSession\":{\"valid\":true}}}";
                 exchange.getResponseHeaders().add("Set-Cookie", "cb-session-id=upstream-private; Path=/; HttpOnly");
             } else {
                 forwarded.incrementAndGet(); seenCookie = exchange.getRequestHeaders().getFirst("Cookie"); seenAuthorization = exchange.getRequestHeaders().getFirst("Authorization"); seenOrigin = exchange.getRequestHeaders().getFirst("Origin");
@@ -62,6 +64,16 @@ class DatabaseWorkspaceTest {
         var builder = HttpRequest.newBuilder(URI.create(origin + path));
         if (cookie != null) builder.header("Cookie", cookie.split(";",2)[0]); if (from != null) builder.header("Origin", from);
         return client.send(builder.GET().build(), HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void savedConnectionDiscoveryDoesNotStartCompanionsAndReturnsOnlySafeMetadata() throws Exception {
+        assertEquals(409, assertThrows(ApiException.class, () -> workspace.savedConnections(project)).status);
+        assertEquals(0, launches.get()); assertFalse(connectionQuery);
+        ready(); var connections = workspace.savedConnections(project);
+        assertTrue(connectionQuery); assertEquals(java.util.List.of(new DatabaseWorkspace.SavedConnection("general", "mysql-id", "MySQL")), connections);
+        assertFalse(new com.google.gson.Gson().toJson(connections).contains("private-url")); assertFalse(connections.toString().contains("must-not-escape"));
+        failConnections = true; var error = assertThrows(ApiException.class, () -> workspace.savedConnections(project));
+        assertEquals(409, error.status); assertFalse(error.getMessage().contains("private upstream failure"));
+        assertEquals(1, launches.get());
     }
     @Test void startsOnlyOnRequestAndReusesEachWorkflowCompanion() throws Exception {
         assertEquals("closed", workspace.status(project).state()); assertEquals(0, launches.get());

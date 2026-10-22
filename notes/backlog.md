@@ -127,7 +127,7 @@ Acceptance criteria:
 
 ### RB-S03 — Attach and reconcile existing application resources
 
-**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** Proposed  
+**Epic:** RB-E01 · **Priority:** High · **Slice:** M1 · **Status:** Implemented; in review
 **Depends on:** RB-S01, RB-S02
 
 As a developer, I want to attach resources that already exist, so Runtime Bay adapts to my application without rebuilding its infrastructure.
@@ -138,6 +138,8 @@ Acceptance criteria:
 2. Distinguish an external resource from an app-owned runtime and show which actions are actually supported; attaching alone does not create, restart, or take ownership of it.
 3. If a host is offline or a container is recreated, retain the reference with an actionable unavailable/missing state and require explicit rebinding to a replacement.
 4. Unlinking removes only the workflow association; sharing one dependency across two workflows neither duplicates it nor implies exclusive lifecycle ownership.
+
+**Implementation:** Reviewed catalog attachments for existing services, CloudBeaver saved connection metadata, host terminal intents, and shared pinned container references. Association-only unlinking, explicit same-kind rebinding, missing/unavailable retention, supported-action cards, and stale-reference guards. See [resource attachments](../docs/resource-attachments.md) for environment and lifecycle boundaries.
 
 <a id="rb-s04"></a>
 
