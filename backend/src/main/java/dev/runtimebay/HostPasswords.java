@@ -62,7 +62,7 @@ final class HostPasswords implements AutoCloseable {
             set(host.id(),password);
         }
     }
-    void forget(HostRegistry.Host host){if(persistence.available())persistence.delete(host);clear(host.id());}
+    void forget(HostRegistry.Host host){try{if(persistence.available())persistence.delete(host);}finally{clear(host.id());}}
     static void validate(String password) {
         if (password != null && (password.length() > 4096 || password.indexOf('\0') >= 0 || password.indexOf('\n') >= 0 || password.indexOf('\r') >= 0))
             throw new ApiException(400, "Enter an SSH password without line breaks, up to 4096 characters");

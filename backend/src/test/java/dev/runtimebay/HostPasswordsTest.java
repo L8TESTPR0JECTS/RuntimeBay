@@ -105,12 +105,13 @@ class HostPasswordsTest {
         var host=new HostRegistry.Host(UUID.randomUUID().toString(),"Fixture","fixture.invalid","alek",22,false);
         HostPasswords.Persistence denied=new HostPasswords.Persistence(){
             public boolean available(){return true;}public boolean has(HostRegistry.Host h){return false;}public String read(HostRegistry.Host h){return null;}
-            public void write(HostRegistry.Host h,String p){throw new ApiException(503,"Keychain denied");}public void delete(HostRegistry.Host h){}
+            public void write(HostRegistry.Host h,String p){throw new ApiException(503,"Keychain denied");}public void delete(HostRegistry.Host h){throw new ApiException(503,"Keychain denied");}
         };
         Path directory=Files.createTempDirectory(Path.of("/tmp"),"rb-");
         try(var passwords=new HostPasswords(directory,helper(),denied)){
             assertEquals(503,assertThrows(ApiException.class,()->passwords.update(host,"not-saved",true,false)).status);
             assertFalse(passwords.authentication(host).remembered());assertFalse(passwords.has(host.id()));
+            passwords.set(host.id(),"existing-session");assertThrows(ApiException.class,()->passwords.forget(host));assertFalse(passwords.has(host.id()));
         }finally{Files.delete(directory);}
     }
 
