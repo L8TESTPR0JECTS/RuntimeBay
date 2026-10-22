@@ -18,16 +18,21 @@ final class ProjectStore {
         Files.createDirectories(directory);
         Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString("rwx------"));
         file = directory.resolve("projects.json");
+        DefinitionTransaction.recover(directory);
+        reload();
+    }
+    synchronized void reload() throws IOException {
         if (Files.exists(file)) {
             try {
                 Registry registry = gson.fromJson(Files.readString(file), Registry.class);
                 if (registry == null || registry.version() != 1 || registry.projects() == null)
                     throw new IllegalArgumentException("Unsupported project registry");
-                projects = new ArrayList<>(registry.projects());
-                for (Project project : projects) {
+                var loaded = new ArrayList<>(registry.projects());
+                for (Project project : loaded) {
                     if (project.id() == null || project.path() == null || project.services() == null)
                         throw new IllegalArgumentException("Invalid project registry");
                 }
+                projects=loaded;
             } catch (RuntimeException e) {
                 throw new IOException("Cannot read project registry. Existing data has been preserved.", e);
             }
@@ -77,6 +82,15 @@ final class ProjectStore {
         Project project = project(projectId);
         service(projectId, id);
         replace(project, project.services().stream().filter(s -> !s.id().equals(id)).toList());
+    }
+    synchronized void importServices(String projectId, String name, List<Service> services) throws IOException {
+        Project original=project(projectId);Set<String> ids=new HashSet<>(),names=new HashSet<>();
+        for(var service:services) {
+            if(service==null||service.id()==null||!ids.add(service.id())||!names.add(service.name().toLowerCase(Locale.ROOT)))throw new ApiException(400,"Duplicate imported service identity or name");
+            text(service.name(),"Service name",80);text(service.command(),"Command",4096);resolveDirectory(original,service.directory());
+            if(service.port()!=null&&(service.port()<1||service.port()>65535))throw new ApiException(400,"Invalid service port");
+        }
+        var next=new ArrayList<>(projects);next.set(next.indexOf(original),new Project(original.id(),text(name,"Project name",80),original.path(),List.copyOf(services)));commit(next);
     }
     private void replace(Project original, List<Service> services) throws IOException {
         var updated = new ArrayList<>(projects);

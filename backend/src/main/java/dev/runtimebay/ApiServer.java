@@ -21,6 +21,8 @@ final class ApiServer implements AutoCloseable {
     private final TerminalManager terminals;
     private final WorkflowContainers workflowContainers;
     private final WorkflowAttachments attachments;
+    private final WorkflowManifests manifests;
+    private final WorkflowPlans plans;
     private final DatabaseWorkspace databases;
     private final MachineHosts machineHosts;
     private final Path hostSshControls;
@@ -38,11 +40,13 @@ final class ApiServer implements AutoCloseable {
         appearance = new AppearanceStore(store.directory());
         workflowContainers = new WorkflowContainers(store, docker);
         attachments = new WorkflowAttachments(store, runtimes.workflows());
+        manifests = new WorkflowManifests(store, runtimes, workflowContainers, attachments);
         hostSshControls = Files.createTempDirectory(Path.of("/tmp"), "rb-");
         Files.setPosixFilePermissions(hostSshControls, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
         hostPasswords = new HostPasswords(hostSshControls, supervisor.resolveSibling("runtimebay-askpass"));
         machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls, hostPasswords));
+        plans = new WorkflowPlans(store, runtimes, manifests, machineHosts::view);
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"), hostPasswords);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
         databases = new DatabaseWorkspace(store, new CloudBeaverRuntime(docker), "http://127.0.0.1:" + port());
@@ -65,7 +69,7 @@ final class ApiServer implements AutoCloseable {
                 String origin = exchange.getRequestHeaders().getFirst("Origin");
                 if (origin != null && !("http://127.0.0.1:" + port()).equals(origin)) throw new ApiException(403, "Invalid origin");
                 if (List.of("POST", "PUT", "DELETE").contains(exchange.getRequestMethod()) && !path.startsWith("/api/terminals")) {
-                    synchronized (definitionsLock) { route(exchange, path); }
+                    synchronized (definitionsLock) { manifests.requireHealthy(); route(exchange, path); }
                 } else route(exchange, path);
             } else assets(exchange, path);
         } catch (ApiException e) { json(exchange, e.status, Map.of("error", e.getMessage())); }
@@ -75,12 +79,13 @@ final class ApiServer implements AutoCloseable {
             json(exchange, 500, Map.of("error", "Operation failed. Check that the project is accessible and try again."));
         } finally { exchange.close(); }
     }
-    private void route(HttpExchange e, String path) throws IOException {
+    private void route(HttpExchange e, String path) throws Exception {
         String method = e.getRequestMethod();
         String[] parts = path.substring(1).split("/");
         if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
         if (path.equals("/api/hosts") || path.startsWith("/api/hosts/")) { routeHosts(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
+        if (parts.length >= 4 && parts[1].equals("workflows") && parts[3].equals("manifest")) { routeManifest(e, parts); return; }
         if (parts.length >= 4 && parts[1].equals("workflows") && parts[3].equals("attachments")) { routeAttachments(e, parts); return; }
         if (path.equals("/api/workflows") && method.equals("GET")) {
             var workflows = runtimes.workflows();
@@ -96,6 +101,7 @@ final class ApiServer implements AutoCloseable {
             var workflows = runtimes.workflows();
             if (method.equals("GET")) { json(e, 200, workflows.view(workflows.get(parts[2]), machineHosts.view())); return; }
             if (method.equals("PUT")) {
+                plans.requireIdle(parts[2]);
                 String expected = e.getRequestHeaders().getFirst("If-Match");
                 if (expected != null && !expected.equals(workflows.revision(workflows.get(parts[2])))) throw new ApiException(409, "This workflow changed while you were editing. Reopen Environments and review its latest bindings.");
                 var definition = gson.fromJson(body(e), WorkflowModels.Workflow.class);
@@ -140,6 +146,7 @@ final class ApiServer implements AutoCloseable {
         }
         if (parts.length >= 4 && parts[1].equals("projects") && parts[3].equals("services")) {
             String project = parts[2];
+            if (!method.equals("GET")) plans.requireIdle(project);
             if ((parts.length == 4 && method.equals("POST")) || (parts.length == 5 && method.equals("PUT"))) {
                 JsonObject body = body(e);
                 Integer port = null;
@@ -165,6 +172,7 @@ final class ApiServer implements AutoCloseable {
                 }
                 if (method.equals("POST")) {
                     var selection = body(e); runtimes.workflows().requireSelection(project, string(selection, "environmentId"), string(selection, "workflowRevision"));
+                    if (!parts[5].equals("stop") && manifests.managed(project, id)) throw new ApiException(409, "This process is YAML managed. Use Run stack or select a process in YAML configuration so dependencies and environment variables are applied.");
                     switch (parts[5]) {
                         case "start" -> runtimes.start(project, id);
                         case "stop" -> runtimes.stop(project, id);
@@ -176,6 +184,38 @@ final class ApiServer implements AutoCloseable {
             }
         }
         throw new ApiException(404, "Endpoint not found");
+    }
+    private void routeManifest(HttpExchange e,String[] parts)throws Exception {
+        String id=parts[2],method=e.getRequestMethod();store.project(id);
+        if(parts.length==4&&method.equals("GET")){
+            var entry=manifests.get(id);var value=new LinkedHashMap<String,Object>();value.put("configured",entry!=null);value.put("definition",entry==null?null:entry.definition());value.put("managedServiceIds",entry==null?List.of():List.copyOf(entry.services().values()));value.put("processKeys",entry==null?Map.of():entry.services());value.put("mappings",entry==null?Map.of("local","local"):entry.hosts());value.put("hosts",machineHosts.view().hosts().stream().map(h->Map.of("id",h.id(),"name",h.name())).toList());value.put("references",entry==null?Map.of():entry.references());value.put("choices",manifests.choices(machineHosts.view()));value.put("plan",plans.state(id));json(e,200,value);return;
+        }
+        if(parts.length==5&&method.equals("GET")){
+            switch(parts[4]){
+                case "export" -> {json(e,200,manifests.export(id));return;}
+                case "file" -> {json(e,200,manifests.readFile(id));return;}
+                case "plan" -> {json(e,200,plans.preview(id,query(e,"process")));return;}
+            }
+        }
+        if(parts.length==5&&method.equals("POST")){
+            var value=body(e);
+            if(parts[4].equals("cancel")){json(e,200,plans.cancel(id,string(value,"runId")));return;}
+            plans.requireIdle(id);
+            if(parts[4].equals("inspect")){var definition=WorkflowYaml.parse(string(value,"yaml"));json(e,200,Map.of("definition",definition,"referenceKinds",WorkflowYaml.referenceKinds(definition)));return;}
+            switch(parts[4]){
+                case "preview", "apply" -> {
+                    Map<String,String> mappings=new LinkedHashMap<>();var raw=value.get("mappings");
+                    if(raw!=null){if(!raw.isJsonObject())throw new ApiException(400,"Host mappings must be an object");for(var item:raw.getAsJsonObject().entrySet()){if(!item.getValue().isJsonPrimitive()||!item.getValue().getAsJsonPrimitive().isString())throw new ApiException(400,"Host mappings must use saved machine IDs");mappings.put(item.getKey(),item.getValue().getAsString());}}
+                    Map<String,WorkflowAttachments.Source> references=new LinkedHashMap<>();var rawReferences=value.get("references");
+                    if(rawReferences!=null){if(!rawReferences.isJsonObject())throw new ApiException(400,"Resource mappings must be an object");for(var item:rawReferences.getAsJsonObject().entrySet())references.put(item.getKey(),gson.fromJson(item.getValue(),WorkflowAttachments.Source.class));}
+                    if(parts[4].equals("preview"))json(e,200,manifests.preview(id,string(value,"yaml"),mappings,references,machineHosts.view()));
+                    else json(e,200,manifests.apply(id,string(value,"yaml"),mappings,references,string(value,"revision"),machineHosts.view()));return;
+                }
+                case "save" -> {manifests.saveFile(id,string(value,"yaml"),string(value,"expectedFileHash"));json(e,200,manifests.readFile(id));return;}
+                case "run" -> {json(e,202,plans.start(id,string(value,"process"),string(value,"revision")));return;}
+            }
+        }
+        throw new ApiException(404,"YAML configuration endpoint not found");
     }
     private Set<String> unavailableAttachmentHosts() {
         var unavailable = new HashSet<String>();
@@ -401,7 +441,7 @@ final class ApiServer implements AutoCloseable {
         e.getResponseBody().write(bytes);
     }
     @Override public void close() {
-        server.stop(0); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
+        server.stop(0); plans.close(); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
         hostPasswords.close();
         try (DirectoryStream<Path> sockets = Files.newDirectoryStream(hostSshControls)) { for (Path socket : sockets) Files.deleteIfExists(socket); }
         catch (IOException e) { System.err.println("Could not clean SSH control sockets"); }

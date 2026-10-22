@@ -19,6 +19,9 @@ final class WorkflowStore {
     WorkflowStore(ProjectStore projects) throws IOException {
         this.projects = projects;
         file = projects.directory().resolve("workflows.json");
+        reload();
+    }
+    synchronized void reload() throws IOException {
         if (Files.exists(file)) try {
             Registry registry = gson.fromJson(Files.readString(file), Registry.class);
             if (registry == null || registry.version() != 1 || registry.workflows() == null) throw new IllegalArgumentException();
@@ -29,6 +32,7 @@ final class WorkflowStore {
             }
             workflows = List.copyOf(registry.workflows());
         } catch (RuntimeException error) { throw new IOException("Cannot read workflows.json. Existing data has been preserved. Restore a valid version or rename this file before retrying migration; keep the original for recovery.", error); }
+        else workflows=List.of();
         reconcile();
     }
 

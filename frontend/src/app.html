@@ -53,6 +53,7 @@
         <section class="welcome"><div class="welcome-art" aria-hidden="true"><span>⌘</span><i></i><b></b></div><div class="eyebrow">LET’S CLEAR THE DECK</div><h2>Your next project starts here.</h2><p>Choose a folder, add the commands you already use,<br>and manage your services from one place.</p><button class="primary" (click)="openProject()">＋ Import your first project</button><small>Your files stay where they are.</small></section>
       } @else {
         @if (workflow(); as w) {
+          <app-workflow-yaml [projectId]="project()!.id" [session]="sessionToken" (changed)="refresh()" (statusChange)="yamlStatus.set($event)"></app-workflow-yaml>
           <section class="workflow-targets" aria-labelledby="workflow-targets-title">
             <div class="section-heading"><div><h2 id="workflow-targets-title">Resource targets <span class="count">{{ w.resources.length }}</span></h2><p>Bindings in {{ environmentName() }}. Each resource keeps its own target.</p></div><app-environments [workflow]="w" [session]="sessionToken" [active]="workflowActive()" (saved)="workflowSaved($event)"></app-environments></div>
             @if (!w.resources.length) { <p class="workflow-target-empty">Add a service or link a container to build this workflow.</p> }
@@ -68,8 +69,8 @@
         <section class="services-section">
           <div class="section-heading"><div><h2>Services <span class="count">{{ project()!.services.length }}</span></h2><p>The moving parts of your project.</p></div><div class="section-actions">
             @if (project()!.services.length) {
-              <button class="text-button" (click)="all('stop')" [disabled]="!connected() || pending().length > 0">Stop services</button>
-              <button class="secondary" (click)="all('start')" [disabled]="!connected() || pending().length > 0 || !canStartAll()">▷ Start services</button>
+              <button class="text-button" (click)="all('stop')" [disabled]="!connected() || pending().length > 0 || yamlRunning()">Stop services</button>
+              <button class="secondary" (click)="all('start')" [disabled]="!connected() || pending().length > 0 || yamlRunning() || (!yamlConfigured() && !canStartAll())">{{ yamlConfigured() ? 'Review stack' : '▷ Start services' }}</button>
             }
             <button class="primary" (click)="openService()" [disabled]="!connected()">＋ Add service</button>
           </div></div>
@@ -86,9 +87,9 @@
                   </button>
                   <div class="service-controls"><button class="inspect-button" (click)="selectService(s.id)">View logs <span>↗</span></button><div>
                     @if (active(s)) {
-                      <button class="icon-button" aria-label="Restart service" title="Restart service" (click)="action(s, 'restart')" [disabled]="busy(s) || !connected() || !canStart(s)">↻</button>
+                      <button class="icon-button" aria-label="Restart service" title="Restart service" (click)="action(s, 'restart')" [disabled]="busy(s) || !connected() || !canStart(s) || yamlManaged(s)">↻</button>
                       <button class="stop-button" (click)="action(s, 'stop')" [disabled]="busy(s) || !connected()">{{ busy(s) ? 'Working…' : '■ Stop' }}</button>
-                    } @else { <button class="start-button" (click)="action(s, 'start')" [disabled]="busy(s) || !connected() || !canStart(s)">{{ busy(s) ? 'Starting…' : '▷ Start' }}</button> }
+                    } @else { <button class="start-button" (click)="action(s, 'start')" [disabled]="busy(s) || !connected() || !canStart(s)">{{ busy(s) ? 'Working…' : yamlManaged(s) ? 'Review run' : '▷ Start' }}</button> }
                   </div></div>
                 </article>
               }

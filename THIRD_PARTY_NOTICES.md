@@ -1,6 +1,6 @@
 # Third-party notices
 
-Runtime Bay's original Java, Angular, Swift, Go, and C source is licensed under the [MIT License](LICENSE). Third-party code and artwork retain the licenses below. This inventory was checked on 2026-10-16 against `package.json`, `package-lock.json`, installed package license files, `backend/pom.xml`, the shaded backend JAR, generated frontend notices, logo provenance, and the packaged Java runtime.
+Runtime Bay's original Java, Angular, Swift, Go, and C source is licensed under the [MIT License](LICENSE). Third-party code and artwork retain the licenses below. This inventory was updated on 2026-10-22 against `package.json`, `package-lock.json`, installed package license files, `backend/pom.xml`, the shaded backend JAR, generated frontend notices, logo provenance, and the packaged Java runtime.
 
 ## Code and artwork shipped in the macOS app
 
@@ -12,12 +12,15 @@ Runtime Bay's original Java, Angular, Swift, Go, and C source is licensed under 
 | RxJS | 7.8.2 | Reactive utilities | [Apache-2.0](licenses/RxJS-Apache-2.0.txt) | [RxJS](https://github.com/ReactiveX/rxjs) |
 | tslib | 2.8.1 | TypeScript runtime helpers | [0BSD](licenses/tslib-0BSD.txt) | [tslib](https://github.com/microsoft/tslib) |
 | GSAP | 3.15.0 | Breathing loader and interface animations | [Standard “No Charge” GSAP License](licenses/GSAP-Standard-License.txt), custom terms | [GSAP](https://gsap.com/standard-license/) |
+| SnakeYAML | 2.5 | Strict workflow YAML parsing and export | [Apache-2.0](licenses/SnakeYAML-Apache-2.0.txt) | [SnakeYAML](https://bitbucket.org/snakeyaml/snakeyaml/src/snakeyaml-2.5/) |
 | Gson | 2.13.2 | JSON serialization | [Apache-2.0](licenses/Gson-Apache-2.0.txt) | [Gson](https://github.com/google/gson/tree/gson-parent-2.13.2) |
 | Error Prone annotations | 2.41.0 | Gson transitive dependency in the shaded JAR | [Apache-2.0](licenses/ErrorProne-Apache-2.0.txt) | [Error Prone](https://github.com/google/error-prone/tree/v2.41.0) |
 | Devicon SVG artwork | v2.17.0 | Developer tool logos | [MIT](licenses/Devicon-MIT.txt); trademarks retained by their owners | [Devicon](https://github.com/devicons/devicon/tree/v2.17.0) |
 | OpenJDK runtime | Java 25, selected during packaging | Runs the Java backend | GPL-2.0 with the Classpath Exception and bundled module-specific notices | [OpenJDK](https://openjdk.org/) |
 
 ### Preserved attribution
+
+- **SnakeYAML:** Copyright (c) 2008–2025 SnakeYAML. Apache-2.0 license text is preserved; unmodified library classes are included in the shaded backend JAR.
 
 - **Angular:** Copyright (c) 2010–2026 Google LLC; the installed upstream MIT text is preserved.
 - **xterm.js:** The upstream notices credit the xterm.js authors, SourceLair Private Company, and Christopher Jeffrey. The Fit addon has its own MIT notice. Both are preserved separately.

@@ -39,6 +39,7 @@ Your project files stay in their existing folders. Runtime Bay saves the command
 | --- | --- |
 | **Projects & services** | Import folders; define commands and working directories; start, stop, and restart individual services or a project's services. |
 | **Databases** | A CloudBeaver Community table browser and SQL editor inside each workflow, with saved connections, filtering, staged grid edits, and transaction controls. |
+| **Workflow YAML** | Load/export/save `runtimebay.yaml`; review imports of processes, environments, and logical resource references. Run dependency-ordered local CLI tasks and services through a separate execution preview. [Format and examples](docs/yaml-workflows.md). |
 | **Workflow environments** | Create, rename, review, select, or remove environments. Bind each service to a machine and each container dependency to a saved container target; review effective changes before applying. In-use hosts and Docker connections are protected. Remote-bound services cannot fall back to local execution. |
 | **Existing resource attachments** | Attach configured services, saved CloudBeaver connection references, and host terminal shortcuts per environment. Missing sources stay visible for explicit rebinding; unlinking preserves the source. Share pinned container references through the existing controls. |
 | **Workflow containers** | Link existing local or remote containers to a project workflow; inspect live status/ports and start, stop, restart, or unlink dependencies. |

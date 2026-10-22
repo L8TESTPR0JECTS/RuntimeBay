@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { Project, Service, WorkflowView, LogEntry, LogResponse } from './types';
 import { Terminals, TerminalWorkspace } from './terminals';
+import { WorkflowYaml, YamlStatus } from './workflow-yaml';
 import { Attachments, AttachmentSource } from './attachments';
 import { Environments } from './environments';
 import { WorkflowContainers } from './workflow-containers';
@@ -18,7 +19,7 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments, Attachments],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments, Attachments, WorkflowYaml],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
@@ -47,6 +48,11 @@ class App implements OnDestroy {
   environmentName = computed(() => this.workflow()?.definition.environments.find(e => e.id === this.workflow()?.definition.defaultEnvironmentId)?.name || 'Local');
   workflowActive = computed(() => this.project()?.services.some(s => this.active(s)) ?? false);
   workflowSaved(value: WorkflowView) { this.workflows.update(list => list.map(w => w.definition.id === value.definition.id ? value : w)); }
+  yamlStatus = signal<YamlStatus>({ projectId: '', configured: false, managedServiceIds: [], running: false });
+  yamlConfigured = computed(() => this.yamlStatus().projectId === this.projectId() && this.yamlStatus().configured);
+  yamlRunning = computed(() => this.yamlStatus().projectId === this.projectId() && this.yamlStatus().running);
+  yamlManaged(service: Service) { return this.yamlStatus().projectId === this.projectId() && this.yamlStatus().managedServiceIds.includes(service.id); }
+  @ViewChild(WorkflowYaml) yamlConfig?: WorkflowYaml;
   canStartAll = computed(() => !!this.workflow() && (this.project()?.services.filter(s => !this.active(s)).every(s => this.canStart(s)) ?? false));
   service = computed(() => this.project()?.services.find(s => s.id === this.serviceId()) || null);
   running = computed(() => this.projects().flatMap(p => p.services).filter(s => this.active(s)).length);
@@ -177,11 +183,12 @@ class App implements OnDestroy {
     if (id && this.projectId() && this.view() === 'runtime') void this.loadingTasks.run('Loading service output…', () => this.refreshLogs(this.projectId()!, id)).catch(() => {});
   }
   active(service: Service) { return ['running', 'starting', 'stopping'].includes(service.state); }
-  busy(service: Service) { return this.pending().includes(service.id) || service.state === 'starting' || service.state === 'stopping'; }
+  busy(service: Service) { return this.yamlRunning() || this.pending().includes(service.id) || service.state === 'starting' || service.state === 'stopping'; }
   canStart(service: Service) { return this.workflow()?.resources.some(r => r.resourceId === service.id && r.type === 'service' && r.status === 'local') ?? false; }
   async action(service: Service, action: 'start' | 'stop' | 'restart') {
     const project = this.project();
     if (!project || this.busy(service)) return;
+    if (this.yamlManaged(service) && action !== 'stop') { if (action === 'start') await this.yamlConfig?.showPlan(service.id); else this.error.set('Stop this YAML-managed process, then review its run to restart with the correct environment and dependencies.'); return; }
     if (action !== 'stop' && !this.canStart(service)) { this.error.set('Resolve this service’s machine binding before starting. Remote service execution is not available yet.'); return; }
     const releaseLoading = this.loadingTasks.begin(`${action === 'start' ? 'Starting' : action === 'stop' ? 'Stopping' : 'Restarting'} ${service.name}…`);
     this.pending.update(ids => [...ids, service.id]); this.error.set('');
@@ -193,6 +200,7 @@ class App implements OnDestroy {
     finally { this.pending.update(ids => ids.filter(id => id !== service.id)); releaseLoading(); }
   }
   async all(action: 'start' | 'stop') {
+    if (action === 'start' && this.yamlConfigured()) { await this.yamlConfig?.showPlan(); return; }
     if (action === 'start' && !this.canStartAll()) { this.error.set('Some services have unavailable targets. Resolve their bindings before starting this workflow.'); return; }
     const services = this.project()?.services.filter(s => action === 'start' ? !this.active(s) : this.active(s)) || [];
     await Promise.all(services.map(s => this.action(s, action)));
