@@ -2,9 +2,9 @@
 
 Live board: [Runtime Bay — Product Roadmap](https://github.com/orgs/L8TESTPR0JECTS/projects/4) · [All repository issues](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues).
 
-The `RB-E##` and `RB-S##` identifiers are stable planning IDs used in the proposal and issue titles. GitHub issue numbers are the source of truth for live tracking. Stories are open; RB-S01, RB-S02, and RB-S03 are **In review**, and RB-S08 is **In progress**, while the remaining stories are in **Backlog** pending refinement; priorities and milestones describe proposed order, not dates or commitments. Dependencies below are linked as native GitHub “blocked by” relationships.
+The `RB-E##` and `RB-S##` identifiers are stable planning IDs used in the proposal and issue titles. GitHub issue numbers are the source of truth for live tracking. Stories are open; RB-S01, RB-S02, RB-S03, and RB-S06 are **In review**, and RB-S08 is **In progress**, while the remaining stories are in **Backlog** pending refinement; priorities and milestones describe proposed order, not dates or commitments. Dependencies below are linked as native GitHub “blocked by” relationships.
 
-Implementation reviews: [#30 — workflow foundation and Go worker prototype](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/30), then [#31 — environment resource bindings](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/31). PR #31 is stacked on #30. [#32 — existing resource attachments](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/32) is stacked on #31. Merge in order #30 → #31 → #32, retargeting each successor to `main` after its base merges.
+Implementation reviews: [#30 — workflow foundation and Go worker prototype](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/30), then [#31 — environment resource bindings](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/31). PR #31 is stacked on #30. [#32 — existing resource attachments](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/32) is stacked on #31. [#33 — YAML configuration and local stack plans](https://github.com/L8TESTPR0JECTS/RuntimeBay/pull/33) is stacked on #32. Merge in order #30 → #31 → #32 → #33, retargeting each successor to `main` after its base merges.
 
 ## Epics
 
@@ -17,6 +17,8 @@ Implementation reviews: [#30 — workflow foundation and Go worker prototype](ht
 | RB-E05 | [#5](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/5) | AI-assisted application setup |
 | RB-E06 | [#6](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/6) | Protocol consoles and troubleshooting |
 | RB-E07 | [#7](https://github.com/L8TESTPR0JECTS/RuntimeBay/issues/7) | Environment portability and beta delivery |
+
+RB-S06 was pulled forward after RB-S03 at the user’s request for repository YAML configuration. Its first implementation covers versioned definitions, private alias mappings, reviewed atomic import/export, and local CLI task/service plans. Distributed execution remains RB-S11; layout serialization remains later cockpit work. See [the YAML format](../docs/yaml-workflows.md).
 
 ## Stories
 
