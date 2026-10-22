@@ -93,7 +93,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
         cancelAnimationFrame(this.frame);
         this.frame = requestAnimationFrame(() => {
           const renderer = this.renderers.get(selected);
-          renderer?.fit.fit();
+          this.fitRenderer(renderer);
           if (this.focusId !== selected) { renderer?.terminal.focus(); this.focusId = selected; }
         });
       } else this.focusId = null;
@@ -130,7 +130,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
     } finally { this.mounting.delete(tab.id); }
     if (this.destroyed || !this.workspace().tabs().some(value => value.id === tab.id)) return;
     const element = document.createElement('div'); element.className = 'shell-surface'; this.surfaces.nativeElement.append(element);
-    const terminal = new TerminalClass({ cursorBlink: true, fontFamily: 'Menlo, Monaco, monospace', fontSize: this.fontSize(), lineHeight: 1.35, scrollback: 10000, theme: this.theme(), screenReaderMode: true });
+    const terminal = new TerminalClass({ cursorBlink: true, fontFamily: 'Menlo, Monaco, monospace', fontSize: this.fontSize(), lineHeight: 1.35, scrollback: 10000, scrollOnUserInput: true, scrollOnEraseInDisplay: true, theme: this.theme(), screenReaderMode: true });
     const fit = new FitClass(); terminal.loadAddon(fit); terminal.open(element);
     terminal.textarea?.setAttribute('aria-label', 'Terminal input · ' + tab.name);
     const renderer: Renderer = { terminal, fit, element, abort: new AbortController(), next: 0, input: Promise.resolve(), queued: 0, exited: false };
@@ -154,7 +154,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
     terminal.onResize(size => { void this.workspace().api('/' + tab.id + '/resize', 'POST', { columns: size.cols, rows: size.rows }, renderer.abort.signal).catch(error => { if (!renderer.abort.signal.aborted && !renderer.exited) this.workspace().error.set((error as Error).message); }); });
     element.hidden = !this.visible() || this.workspace().selected() !== tab.id;
     requestAnimationFrame(() => {
-      if (!renderer.abort.signal.aborted && !element.hidden) { fit.fit(); terminal.focus(); }
+      if (!renderer.abort.signal.aborted && !element.hidden) { this.fitRenderer(renderer); terminal.focus(); }
     });
     void this.read(tab.id, renderer);
   }
@@ -181,7 +181,14 @@ export class Terminals implements AfterViewInit, OnDestroy {
       }
     }
   }
-  private fit() { if (this.visible()) this.renderers.get(this.workspace().selected() || '')?.fit.fit(); }
+  private fitRenderer(renderer?: Renderer) {
+    if (!renderer || renderer.element.hidden || renderer.abort.signal.aborted) return;
+    const buffer = renderer.terminal.buffer.active;
+    const following = buffer.viewportY >= buffer.baseY;
+    renderer.fit.fit();
+    if (following) renderer.terminal.scrollToBottom();
+  }
+  private fit() { if (this.visible()) this.fitRenderer(this.renderers.get(this.workspace().selected() || '')); }
   ngOnDestroy() {
     window.removeEventListener('resize', this.resizeListener);
     this.destroyed = true; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.themeObserver?.disconnect();
