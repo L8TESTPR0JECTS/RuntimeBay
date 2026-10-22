@@ -1,0 +1,28 @@
+apiVersion: runtimebay.dev/v1
+kind: Workflow
+name: Local stack
+hosts: [local]
+defaultEnvironment: development
+processes:
+  dependencies:
+    name: Start Compose dependencies
+    command: docker compose up -d --wait
+    mode: task
+    timeoutSeconds: 180
+  api:
+    name: Application server
+    command: npm run dev
+    dependsOn: [dependencies]
+    port: 3000
+  awsIdentity:
+    name: Check AWS identity
+    command: aws sts get-caller-identity
+    mode: task
+    includeInStack: false
+    env:
+      AWS_PROFILE: '${env:DEV_AWS_PROFILE}'
+environments:
+  development:
+    name: Development
+    env:
+      NODE_ENV: development

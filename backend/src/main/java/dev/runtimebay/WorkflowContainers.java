@@ -18,7 +18,9 @@ final class WorkflowContainers {
     private List<Link> links;
     WorkflowContainers(ProjectStore projects, DockerService docker) throws IOException {
         this.projects = projects; this.docker = docker; file = projects.directory().resolve("workflow-containers.json");
-        links = List.of();
+        reload();
+    }
+    synchronized void reload() throws IOException {
         if (Files.exists(file)) try {
             Registry registry = gson.fromJson(Files.readString(file), Registry.class);
             if (registry == null || registry.version() != 1 || registry.links() == null) throw new IllegalArgumentException("Invalid workflow containers registry");
@@ -28,6 +30,7 @@ final class WorkflowContainers {
             }
             links = List.copyOf(registry.links());
         } catch (RuntimeException error) { throw new IOException("Cannot read workflow containers. Existing data has been preserved.", error); }
+        else links=List.of();
     }
     synchronized List<Link> all() { return List.copyOf(links); }
     synchronized List<Link> list(String projectId) { projects.project(projectId); return links.stream().filter(link -> link.projectId().equals(projectId)).toList(); }

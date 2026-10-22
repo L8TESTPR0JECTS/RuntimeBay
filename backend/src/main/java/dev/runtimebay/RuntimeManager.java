@@ -53,6 +53,15 @@ final class RuntimeManager implements AutoCloseable {
             return workflows.save(id, value);
         } finally { for (int i = locked.size() - 1; i >= 0; i--) locked.get(i).operation.unlock(); }
     }
+    <T> T withStoppedDefinitions(String projectId,List<String> futureIds,java.util.concurrent.Callable<T> action)throws Exception {
+        var ids=new TreeSet<String>(futureIds);for(var service:store.project(projectId).services())ids.add(service.id());
+        var locked=ids.stream().map(this::slot).toList();for(var slot:locked)slot.operation.lock();
+        try{if(closing)throw new ApiException(409,"Runtime Bay is shutting down");for(var slot:locked)synchronized(slot){requireStopped(slot);}return action.call();}
+        finally{for(int i=locked.size()-1;i>=0;i--)locked.get(i).operation.unlock();}
+    }
+    record ProcessState(String state,Integer exitCode,String startedAt){}
+    ProcessState processState(String projectId,String id){store.service(projectId,id);var slot=slot(id);synchronized(slot){return new ProcessState(slot.state,slot.exitCode,slot.startedAt);}}
+    void awaitProcess(String projectId,String id,int seconds)throws Exception{store.service(projectId,id);var slot=slot(id);java.util.concurrent.CompletableFuture<Void> done;synchronized(slot){done=slot.completion;}if(done==null)throw new ApiException(409,"Process did not start");done.get(seconds,java.util.concurrent.TimeUnit.SECONDS);}
     private Slot slot(String id) { return slots.computeIfAbsent(id, ignored -> new Slot()); }
 
     List<ProjectView> projects() {
@@ -89,9 +98,12 @@ final class RuntimeManager implements AutoCloseable {
     void start(String projectId, String id) throws IOException {
         Slot slot = slot(id);
         slot.operation.lock();
-        try { startUnlocked(projectId, id); } finally { slot.operation.unlock(); }
+        try { startUnlocked(projectId, id, Map.of()); } finally { slot.operation.unlock(); }
     }
-    private void startUnlocked(String projectId, String id) throws IOException {
+    void startWithEnvironment(String projectId,String id,Map<String,String> environment)throws IOException {
+        var slot=slot(id);slot.operation.lock();try{startUnlocked(projectId,id,environment);}finally{slot.operation.unlock();}
+    }
+    private void startUnlocked(String projectId, String id, Map<String,String> environment) throws IOException {
         Slot slot = slot(id);
         synchronized (slot) {
             if (closing) throw new ApiException(409, "Runtime Bay is shutting down");
@@ -110,6 +122,7 @@ final class RuntimeManager implements AutoCloseable {
                 ProcessBuilder builder = new ProcessBuilder(launcher.toString(), service.command()).directory(cwd.toFile());
                 // Runtime Bay's session token belongs to its own API, never to a managed service.
                 builder.environment().keySet().removeIf(k -> k.startsWith("RUNTIMEBAY_"));
+                for(var entry:environment.entrySet()){if(entry.getKey().startsWith("RUNTIMEBAY_"))throw new ApiException(400,"Reserved runtime environment variable");builder.environment().put(entry.getKey(),entry.getValue());}
                 process = builder.start();
                 Process launched = process;
                 BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));

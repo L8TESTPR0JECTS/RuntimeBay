@@ -1431,3 +1431,17 @@ input,textarea,select {
 .attachment-database-discovery > small { color: var(--muted); line-height: 1.5; }
 .attachment-identity { display: block; overflow-wrap: anywhere; }
 @media (max-width: 1000px) { .attachment-card { flex-direction: column; align-items: stretch; } .attachment-actions { justify-content: flex-start; } }
+
+.workflow-yaml { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.25rem; margin-bottom: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.workflow-yaml small { display: block; color: var(--muted); font-size: .8rem; margin-top: .3rem; }
+.yaml-plan-status { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; padding-top: .7rem; border-top: 1px solid var(--line); }
+.yaml-plan-status span { flex: 1; min-width: 12rem; color: var(--muted); overflow-wrap: anywhere; }
+.yaml-modal { width: min(1000px, 100%); }
+.yaml-modal .section-actions { flex-wrap: wrap; margin: .5rem 0; }
+.yaml-modal .yaml-editor { min-height: 310px; resize: vertical; font: .85rem/1.6 ui-monospace, SFMono-Regular, monospace; white-space: pre; }
+.yaml-modal select { display: block; width: 100%; margin-top: 9px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; font: inherit; letter-spacing: normal; }
+.yaml-steps li, .yaml-changes li { margin: .7rem 0; overflow-wrap: anywhere; }
+.yaml-steps code, .yaml-steps small { display: block; margin-top: .5rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.yaml-steps code { padding: .7rem; background: var(--surface-soft); border-radius: 5px; }
+.yaml-steps small { color: var(--muted); }
+.yaml-message { color: var(--success-ink); background: var(--success-bg); padding: .8rem; border-radius: 6px; }

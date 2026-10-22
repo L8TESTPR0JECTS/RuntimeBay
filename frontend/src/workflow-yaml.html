@@ -1,0 +1,42 @@
+<section class="workflow-yaml">
+  <div><strong>Workflow as code</strong><small>{{ info()?.configured ? 'Imported YAML defines processes, environments, and resource references.' : 'Keep your stack configuration in runtimebay.yaml.' }}</small></div>
+  <div class="section-actions"><button class="secondary" (click)="show()" [disabled]="busy()">YAML configuration</button>@if (info()?.configured) { <button class="primary" (click)="showPlan()" [disabled]="busy() || running()">Review stack run</button> }</div>
+  @if (info()?.plan; as plan) { @if (plan.state !== 'idle') { <div class="yaml-plan-status" role="status"><strong>{{ plan.state }}{{ plan.current ? ' · ' + plan.current : '' }}</strong><span>{{ plan.message }}</span><small>Completed steps: {{ plan.completed.join(', ') || 'none' }}</small>@if (running()) { <button class="secondary" (click)="cancel()" [disabled]="busy() || plan.state === 'cancelling'">Cancel plan</button> }</div> } }
+  @if (error() && !open()) { <p class="form-error" role="alert">{{ error() }}</p> }
+</section>
+@if (open()) {
+  <div class="modal-backdrop" (click)="dismiss()" (keydown)="keydown($event)"><section class="modal yaml-modal" role="dialog" aria-modal="true" aria-labelledby="yaml-title" (click)="$event.stopPropagation()">
+    <div class="modal-top"><span class="eyebrow">YOUR STACK, IN YOUR REPOSITORY</span><button class="icon-button" aria-label="Close YAML configuration" (click)="dismiss()" [disabled]="busy()">×</button></div>
+    <h2 id="yaml-title">{{ phase() === 'run' ? 'Review stack run.' : phase() === 'review' ? 'Review YAML import.' : 'YAML configuration.' }}</h2>
+    @if (phase() === 'edit') {
+      <p>Load or paste a versioned workflow definition. Loading, exporting, and saving a file never execute it.</p>
+      <div class="section-actions"><button class="secondary" (click)="loadFile()" [disabled]="busy()">Load runtimebay.yaml</button><button class="text-button" (click)="exportCurrent()" [disabled]="busy()">Export current definitions</button></div>
+      <label>WORKFLOW YAML<textarea class="yaml-editor" spellcheck="false" aria-label="Workflow YAML" [ngModel]="yaml()" (ngModelChange)="edit($event)" [disabled]="busy()"></textarea></label>
+      <p class="resource-note">Use mode: task for one-off Docker/AWS CLI commands and mode: service for long-running processes. dependsOn orders processes; includeInStack: false keeps a task manual. Private credentials use complete ${{ '{' }}env:VARIABLE{{ '}' }} references.</p>
+    }
+    @if (phase() === 'bindings' && parsed(); as definition) {
+      <p>Map logical aliases to this computer’s saved machines and resources. These private mappings are kept outside the YAML file.</p>
+      @for (alias of definition.hosts; track alias) { <label>HOST · {{ alias }}<select [(ngModel)]="mappings[alias]" [disabled]="busy() || alias === 'local'"><option value="">Choose a saved machine…</option>@for (host of info()?.hosts || []; track host.id) { <option [value]="host.id">{{ host.name }}</option> }</select></label> }
+      @for (alias of aliases(); track alias.name) { <label>{{ alias.kind }} · {{ alias.name }}<select [ngModel]="selectedReference(alias.name)" (ngModelChange)="setReference(alias.name, $event)" [disabled]="busy()"><option value="">Choose an existing reference…</option>@for (choice of choices(alias.kind); track choice.key) { <option [value]="choice.key">{{ choice.name }} · {{ choice.detail }}</option> }</select></label> }
+      <p class="resource-note">Configure/discover missing external resources through their normal app controls first. Import links references; it does not provision infrastructure or take ownership.</p>
+      <button class="text-button" (click)="phase.set('edit')" [disabled]="busy()">Back to YAML</button>
+    }
+    @if (phase() === 'review' && preview(); as changes) { <ul class="yaml-changes">@for (change of changes.changes; track $index) { <li>{{ change }}</li> }</ul>@for (warning of changes.warnings; track $index) { <p class="resource-note">{{ warning }}</p> } }
+    @if (phase() === 'run') {
+      <p>Runs the imported definition, not unsaved editor text. Review the selected environment and all CLI commands before executing.</p>
+      <label>RUN<select [ngModel]="process()" (ngModelChange)="selectProcess($event)" [disabled]="busy() || running()"><option value="">All processes included in the stack</option>@for (process of processes(); track process.key) { <option [value]="process.key">{{ process.name }} + dependencies</option> }</select></label>
+      <button class="secondary" (click)="reviewRun()" [disabled]="busy() || running()">Refresh execution preview</button>
+      @if (runPreview(); as plan) { <h3>{{ plan.environmentName }}</h3><ol class="yaml-steps">@for (step of plan.steps; track step.key) { <li><strong>{{ step.name }} · {{ step.mode }}{{ step.reuse ? ' · reuse running process' : '' }}</strong><code>{{ step.command }}</code><small>Directory: {{ step.directory }}{{ step.port ? ' · Port: ' + step.port : '' }} · Environment keys: {{ step.environmentKeys.join(', ') || 'inherited shell environment' }}</small></li> }</ol>@for (warning of plan.warnings; track $index) { <p class="resource-note">{{ warning }}</p> } }
+    }
+    @if (phase() === 'edit') { @for (warning of warnings(); track $index) { <p class="resource-note">{{ warning }}</p> } }
+    @if (message()) { <p class="yaml-message" role="status">{{ message() }}</p> }
+    @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
+    <div class="modal-footer"><button class="text-button" (click)="dismiss()" [disabled]="busy()">Close</button><div class="section-actions">
+      @if (phase() !== 'run' && parsed()) { <button class="secondary" (click)="saveFile()" [disabled]="busy() || running()">{{ fileExists() ? 'Save runtimebay.yaml' : 'Create runtimebay.yaml' }}</button> }
+      @if (phase() === 'edit') { <button class="primary" (click)="inspect()" [disabled]="busy() || running()">Validate YAML</button> }
+      @if (phase() === 'bindings') { <button class="primary" (click)="review()" [disabled]="busy() || running()">Preview import</button> }
+      @if (phase() === 'review') { <button class="text-button" (click)="phase.set('bindings')" [disabled]="busy()">Back to mappings</button><button class="primary" (click)="apply()" [disabled]="busy() || running() || !preview()">Apply definitions</button> }
+      @if (phase() === 'run') { <button class="primary" (click)="run()" [disabled]="busy() || running() || !runPreview()">Execute reviewed plan</button> }
+    </div></div>
+  </section></div>
+}

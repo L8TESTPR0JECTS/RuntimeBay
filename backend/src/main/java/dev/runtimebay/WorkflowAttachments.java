@@ -23,9 +23,13 @@ final class WorkflowAttachments {
     private Registry registry = new Registry(1, List.of(), List.of());
     WorkflowAttachments(ProjectStore projects, WorkflowStore workflows) throws IOException {
         this.projects = projects; this.workflows = workflows; file = projects.directory().resolve("workflow-attachments.json");
+        reload();
+    }
+    synchronized void reload() throws IOException {
         if (Files.exists(file)) try {
             var saved = gson.fromJson(Files.readString(file), Registry.class); validate(saved); registry = saved;
         } catch (RuntimeException error) { throw new IOException("Cannot read workflow-attachments.json. Existing data is preserved; restore a valid reference registry before retrying.", error); }
+        else registry=new Registry(1,List.of(),List.of());
     }
     static String key(Source s) { return WorkflowStore.stable("attachment-source", s.kind() + "\0" + s.projectId() + "\0" + s.scope() + "\0" + s.sourceId()); }
     synchronized List<Choice> choices(HostRegistry.View hosts, List<WorkflowContainers.Link> containers) {
@@ -58,6 +62,17 @@ final class WorkflowAttachments {
         var entry = new Entry(UUID.randomUUID().toString(), workflowId, environmentId, source, choice.name());
         var entries = new ArrayList<>(registry.entries()); entries.add(entry); commit(new Registry(1, List.copyOf(entries), registry.databases())); return entry;
     }
+    synchronized List<Entry> all(String workflowId){return registry.entries().stream().filter(e->e.workflowId().equals(workflowId)).toList();}
+    synchronized Entry importReference(String workflowId,String environmentId,String id,Source source,HostRegistry.View hosts,List<WorkflowContainers.Link> containers)throws IOException{
+        if(id==null)return attach(workflowId,environmentId,source,hosts,containers);
+        var previous=find(workflowId,id);environment(workflowId,environmentId);if(!previous.environmentId().equals(environmentId))throw new ApiException(409,"Imported association belongs to another environment");
+        var choice=choices(hosts,containers).stream().filter(c->c.source().equals(source)&&c.source().kind().equals(previous.source().kind())).findFirst().orElseThrow(()->new ApiException(409,"Choose an existing replacement of the same kind"));
+        if(source.kind().equals("service")&&source.projectId().equals(workflowId))throw new ApiException(409,"Service is already configured here");
+        var duplicate=registry.entries().stream().filter(e->!e.id().equals(id)&&e.workflowId().equals(workflowId)&&e.environmentId().equals(environmentId)&&e.source().equals(source)).findFirst().orElse(null);
+        if(duplicate!=null)return duplicate;
+        var replacement=new Entry(id,workflowId,environmentId,source,choice.name());commit(new Registry(1,registry.entries().stream().map(e->e.id().equals(id)?replacement:e).toList(),registry.databases()));return replacement;
+    }
+    synchronized void unlinkImported(String workflowId,String id)throws IOException{var entry=find(workflowId,id);commit(new Registry(1,registry.entries().stream().filter(e->!e.id().equals(entry.id())).toList(),registry.databases()));}
     synchronized Entry rebind(String workflowId, String id, Source source, HostRegistry.View hosts, List<WorkflowContainers.Link> containers) throws IOException {
         var previous = find(workflowId, id); selected(previous); environment(workflowId, previous.environmentId());
         var choice = choices(hosts, containers).stream().filter(c -> c.source().equals(source) && c.source().kind().equals(previous.source().kind())).findFirst().orElseThrow(() -> new ApiException(409, "Choose an existing source of the same kind"));
