@@ -29,6 +29,7 @@ final class WorkflowContainers {
             links = List.copyOf(registry.links());
         } catch (RuntimeException error) { throw new IOException("Cannot read workflow containers. Existing data has been preserved.", error); }
     }
+    synchronized List<Link> all() { return List.copyOf(links); }
     synchronized List<Link> list(String projectId) { projects.project(projectId); return links.stream().filter(link -> link.projectId().equals(projectId)).toList(); }
     Link add(String projectId, String context, String endpoint, String containerId) throws IOException {
         projects.project(projectId); DockerService.containerId(containerId);
@@ -60,7 +61,7 @@ final class WorkflowContainers {
             var key = List.of(link.context(), link.endpoint());
             if (errors.containsKey(key)) return new Status(link, "unavailable", "Host unavailable", "", errors.get(key));
             var container = hosts.get(key).containers().stream().filter(value -> value.id().equals(link.containerId())).findFirst().orElse(null);
-            if (container == null) return new Status(link, "missing", "Container no longer exists", "", "Unlink this reference and link the replacement container.");
+            if (container == null) return new Status(link, "missing", "Container no longer exists", "", "Link the replacement container, then select it for this resource in Environments. Names never retarget a saved container ID automatically.");
             return new Status(link, container.state(), container.status(), container.ports(), null);
         }).toList();
     }

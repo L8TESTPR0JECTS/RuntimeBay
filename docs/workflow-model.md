@@ -53,3 +53,7 @@ Host removal or SSH address/user/port changes are blocked if any environment bin
 Database dependencies in this slice are existing **database containers**, selected like Kafka/cache containers. CloudBeaver SQL connections remain managed inside CloudBeaver; native database-resource binding belongs to the attachment/reconciliation work. A machine target is not inferred from a Docker SSH URL. Remote service targets can be saved and reviewed but cannot execute until the Go worker ownership/lifecycle work is integrated. No new worker is installed or remote process started by environment editing.
 
 RB-S02 fixtures verify independent environment persistence and deletion, full container identity selection across saved targets, unchanged legacy definitions and remote workloads, inactive-environment deletion guards, missing-link handling, endpoint forgery rejection, stale editor/action rejection, and authenticated API behavior.
+
+## External associations
+
+RB-S03 complements this service/container target graph with environment-scoped service, database connection, and terminal-intent references. See [existing resource attachments](resource-attachments.md) for ownership, discovery, API and persistence boundaries. The target graph does not take lifecycle ownership of those sources.

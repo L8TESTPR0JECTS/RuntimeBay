@@ -95,6 +95,7 @@
             </div>
           }
         </section>
+        <app-attachments [projectId]="project()!.id" [environmentId]="workflow()?.definition?.defaultEnvironmentId || ''" [workflowRevision]="workflow()?.revision || ''" [session]="sessionToken" (navigate)="inspectAttachment($event)" (changed)="refresh()"></app-attachments>
         <app-workflow-containers [projectId]="project()!.id" [session]="sessionToken" [environmentId]="workflow()?.definition?.defaultEnvironmentId || ''" [workflowRevision]="workflow()?.revision || ''"></app-workflow-containers>
         @if (service(); as s) {
           <section class="inspector"><div class="inspector-heading"><div><span class="eyebrow">RUNTIME INSPECTOR</span><h2>{{ s.name }} <span class="inspector-state">{{ s.pid ? 'PID ' + s.pid : s.state }}</span></h2></div><div class="section-actions"><button class="text-button" (click)="openService(s)" [disabled]="active(s) || busy(s)">Edit service</button><button class="text-button" (click)="askDelete()" [disabled]="active(s) || busy(s)" aria-label="Remove service">Remove</button></div></div>

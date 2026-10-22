@@ -164,10 +164,38 @@ final class DatabaseWorkspace implements AutoCloseable {
     private JsonObject gql(Session session, String query, Map<String, ?> variables) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(session.running.origin().resolve(session.prefix + "api/gql")).timeout(Duration.ofSeconds(15)).header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(Map.of("query", query, "variables", variables)))).build();
-        var response = session.client.send(request, HttpResponse.BodyHandlers.ofString());
-        JsonObject value = JsonParser.parseString(response.body()).getAsJsonObject();
+        var response = session.client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        byte[] payload;
+        try (InputStream input = response.body()) { payload = input.readNBytes(1048577); }
+        if (payload.length > 1048576) throw new IOException("Companion metadata response is too large");
+        JsonObject value = JsonParser.parseString(new String(payload, StandardCharsets.UTF_8)).getAsJsonObject();
         if (response.statusCode() != 200 || value.has("errors")) throw new IOException("Companion API login failed");
         return value.getAsJsonObject("data");
+    }
+    record SavedConnection(String scope, String id, String name) {}
+    List<SavedConnection> savedConnections(String id) {
+        projects.project(id);
+        Session session = sessions.get(id);
+        if (session == null || !status(id).state().equals("ready")) throw new ApiException(409, "Open this workflow’s database workspace first, then refresh saved connections. No companion is started by discovery.");
+        try {
+            // Read metadata only: no credentials, URLs, SQL, or openConnection mutation.
+            var result = gql(session, "query RuntimeBaySavedConnections { userConnections { id name projectId } }", Map.of());
+            var values = result.getAsJsonArray("userConnections");
+            if (values == null || values.size() > 1000) throw new IOException("Invalid connection inventory");
+            var connections = new ArrayList<SavedConnection>();
+            Set<List<String>> ids = new HashSet<>();
+            for (var value : values) {
+                var connection = value.getAsJsonObject();
+                String scope = connection.get("projectId").getAsString(), connectionId = connection.get("id").getAsString(), name = connection.get("name").getAsString();
+                for (String field : List.of(scope, connectionId, name)) if (field.isBlank() || field.length() > 512 || field.chars().anyMatch(Character::isISOControl)) throw new IOException("Invalid connection metadata");
+                if (!ids.add(List.of(scope, connectionId))) throw new IOException("Duplicate connection identity");
+                connections.add(new SavedConnection(scope, connectionId, name));
+            }
+            return List.copyOf(connections);
+        } catch (Exception error) {
+            if (error instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new ApiException(409, "Saved connections could not be read. Keep the database workspace open, retry, and resolve any companion sign-in error there. Existing references are preserved.");
+        }
     }
     void authorizeFrame(HttpExchange exchange, String id) {
         Session session = session(id);

@@ -1,5 +1,5 @@
 <section class="workflow-containers" [attr.inert]="open() ? '' : null">
-  <div class="section-heading"><div><h2>Containers <span class="count">{{ links().length }}</span></h2><p>The Docker dependencies for the selected environment.</p></div><button class="primary" (click)="show()">＋ Link container</button></div>
+  <div class="section-heading"><div><h2>Containers <span class="count">{{ links().length }}</span></h2><p>External Docker dependencies for the selected environment. Controls affect the same container wherever it is shared.</p></div><button class="primary" (click)="show()">＋ Link container</button></div>
   @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="load()">Retry</button></div> }
   @if (!links().length) { <div class="workflow-container-empty"><span aria-hidden="true">▤</span><div><strong>{{ loading() ? 'Loading linked containers…' : 'Bring your dependencies into the workflow.' }}</strong><p>Link Kafka, databases, caches, or any existing container on your Docker hosts.</p></div></div> }
   <div class="workflow-container-list">

@@ -1411,3 +1411,23 @@ input,textarea,select {
 .environment-bindings small { display: block; font-weight: 400; text-transform: none; letter-spacing: normal; overflow-wrap: anywhere; }
 .environment-review { padding-left: 24px; line-height: 1.7; overflow-wrap: anywhere; }
 .environment-review li { margin-bottom: 12px; }
+
+.workflow-attachments { margin: 2rem 0; }
+.attachment-card { display: flex; align-items: center; gap: 1.5rem; padding: 1.2rem; margin: .7rem 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.attachment-card > div:first-child { flex: 1; min-width: 0; }
+.attachment-card h3 { margin: .6rem 0; }
+.attachment-card small, .attachment-card code { display: block; color: var(--muted); overflow-wrap: anywhere; margin-top: .5rem; font-size: .8rem; }
+.attachment-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: flex-end; }
+.attachment-modal { width: min(780px, 100%); }
+.attachment-modal select { display: block; width: 100%; margin-top: 9px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; font: inherit; letter-spacing: normal; }
+.attachment-picker { max-height: 300px; overflow: auto; margin-top: 1rem; border: 1px solid var(--line); border-radius: 7px; }
+.attachment-picker > p { padding: 1rem; color: var(--muted); }
+.attachment-modal .attachment-choice { display: flex; align-items: center; gap: 1rem; padding: 1rem; margin: 0; border-bottom: 1px solid var(--line); }
+.attachment-choice input { width: auto !important; margin: 0 !important; accent-color: var(--accent); }
+.attachment-choice span { min-width: 0; }
+.attachment-choice small { display: block; font-weight: 400; letter-spacing: normal; overflow-wrap: anywhere; }
+.attachment-database-discovery { border-top: 1px solid var(--line); margin-top: 1rem; padding-top: .5rem; }
+.attachment-database-discovery .section-actions { margin: .8rem 0; flex-wrap: wrap; }
+.attachment-database-discovery > small { color: var(--muted); line-height: 1.5; }
+.attachment-identity { display: block; overflow-wrap: anywhere; }
+@media (max-width: 1000px) { .attachment-card { flex-direction: column; align-items: stretch; } .attachment-actions { justify-content: flex-start; } }

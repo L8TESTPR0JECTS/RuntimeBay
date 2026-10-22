@@ -1,0 +1,37 @@
+<section class="workflow-attachments">
+  <div class="section-heading"><div><h2>Attached resources <span class="count">{{ resources().length }}</span></h2><p>Saved references in this environment. Attaching never starts a workload or takes ownership.</p></div><button class="secondary" (click)="show()">＋ Attach existing</button></div>
+  @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="load()">Retry</button></div> }
+  @if (!resources().length) { <p class="resource-note">Attach another workflow’s configured service, a saved CloudBeaver connection, or a host terminal shortcut. Existing container references appear in Containers below.</p> }
+  @for (resource of resources(); track resource.reference.id) {
+    <article class="attachment-card"><div><span class="eyebrow">{{ resource.reference.source.kind }} · {{ resource.ownership === 'managed-at-source' ? 'Managed in source workflow' : 'External reference' }}</span><h3>{{ resource.name }}</h3><small>{{ resource.detail }}</small><code>{{ resource.reference.source.sourceId }}{{ resource.reference.source.scope ? ' · ' + resource.reference.source.scope : '' }}</code></div>
+      <div class="attachment-actions"><span class="workflow-target-state">{{ resource.state === 'saved' ? 'Saved reference' : resource.state }}</span>
+        @if (canInspect(resource)) { <button class="secondary" (click)="inspect(resource)" [disabled]="busy()">{{ actionLabel(resource) }}</button> }
+        <button class="text-button" (click)="show(resource)" [disabled]="busy()">Rebind</button><button class="text-button" (click)="unlink(resource)" [disabled]="busy()" title="Remove this environment’s association; keep the source resource">Unlink</button>
+      </div>
+    </article>
+  }
+</section>
+@if (open()) {
+  <div class="modal-backdrop" (click)="dismiss()" (keydown)="keydown($event)"><section class="modal attachment-modal" role="dialog" aria-modal="true" aria-labelledby="attachment-title" (click)="$event.stopPropagation()">
+    <div class="modal-top"><span class="eyebrow">CONNECT WHAT ALREADY EXISTS</span><button class="icon-button" aria-label="Close resource picker" (click)="dismiss()" [disabled]="busy()">×</button></div>
+    <h2 id="attachment-title">{{ reviewing() ? 'Review reference.' : editing() ? 'Rebind resource.' : 'Attach existing.' }}</h2>
+    @if (!reviewing()) {
+      <p>{{ editing() ? 'Choose an explicit replacement of the same kind. The workflow association keeps its identity.' : 'Choose a saved source. Services remain controlled in their original workflow; database credentials remain in CloudBeaver.' }}</p>
+      <label>KIND<select [ngModel]="kind()" (ngModelChange)="kind.set($event); selected.set('')" [disabled]="busy() || !!editing()"><option value="all">All saved resources</option><option value="service">Configured services</option><option value="database">Database connections</option><option value="terminal">Host terminal shortcuts</option><option value="container">Container references</option></select></label>
+      <label>FILTER<input placeholder="Find a resource…" [ngModel]="filter()" (ngModelChange)="filter.set($event)" [disabled]="busy()"></label>
+      <div class="attachment-picker" role="radiogroup" aria-label="Saved resource choices">
+        @for (choice of visible(); track choice.key) { <label class="attachment-choice"><input type="radio" name="attachment" [value]="choice.key" [ngModel]="selected()" (ngModelChange)="selected.set($event)" [disabled]="busy() || attached(choice)"><span><strong>{{ choice.name }}</strong><small>{{ choice.source.kind }} · {{ choice.detail }}{{ attached(choice) ? ' · Already attached/configured' : '' }}</small></span></label> }
+        @if (!visible().length) { <p>No matching saved references. Link containers or configure services first; refresh connections from an open database workspace below.</p> }
+      </div>
+      <div class="attachment-database-discovery"><label>DATABASE SOURCE WORKSPACE<select [ngModel]="databaseProject()" (ngModelChange)="databaseProject.set($event)" [disabled]="busy()">@for (workspace of catalog().databaseWorkspaces; track workspace.id) { <option [value]="workspace.id">{{ workspace.name }}</option> }</select></label><div class="section-actions"><button class="text-button" (click)="openDatabaseWorkspace()" [disabled]="busy() || !databaseProject()">Open source workspace</button><button class="secondary" (click)="refreshDatabases()" [disabled]="busy() || !databaseProject()">Refresh saved connections</button></div><small>Reads IDs and names from an already-open companion. It never starts the companion or connects to a database.</small></div>
+    } @else if (choice(); as selectedChoice) {
+      <p>{{ editing() ? editing()!.name + ' → ' : '' }}<strong>{{ selectedChoice.name }}</strong></p><p>{{ selectedChoice.detail }}</p><code class="attachment-identity">{{ selectedChoice.source.sourceId }}{{ selectedChoice.source.scope ? ' · ' + selectedChoice.source.scope : '' }}</code>
+      <p class="resource-note">{{ selectedChoice.source.kind === 'container' ? 'This reuses the existing container-link behavior: the container resource is available across this workflow’s environments. Choose per-environment replacements in Environments. Shared controls affect the same physical container.' : 'This association belongs to the selected environment. Other environments and workflows keep their own references. Rebinding or unlinking never changes the source resource.' }} No process, container, database connection, or terminal session is started by saving this reference.</p>
+    }
+    @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+    <div class="modal-footer"><button class="text-button" (click)="reviewing() ? reviewing.set(false) : dismiss()" [disabled]="busy()">{{ reviewing() ? 'Back' : 'Cancel' }}</button>
+      @if (reviewing()) { <button class="primary" (click)="save()" [disabled]="busy() || !choice()">{{ editing() ? 'Apply replacement' : 'Attach reference' }}</button> }
+      @else { <button class="primary" (click)="reviewing.set(true)" [disabled]="busy() || !choice()">Review reference</button> }
+    </div>
+  </section></div>
+}
