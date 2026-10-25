@@ -53,7 +53,8 @@ export class TerminalWorkspace {
   }
   destroy() { this.controller.abort(); }
 }
-interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; abort: AbortController; next: number; input: Promise<void>; queued: number; exited: boolean }
+interface AssistState { buffer: string; cursor: number; cwd: string; command: string; recognized: boolean; commands: string[]; paths: string[] }
+interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; abort: AbortController; next: number; input: Promise<void>; queued: number; exited: boolean; assist?: { dispose(): void } }
 
 @Component({
   selector: 'app-terminals', standalone: true,
@@ -66,6 +67,15 @@ interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; ab
       }
       <p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><div class="shell-heading-actions"><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span><button class="secondary shell-fullscreen-toggle" (click)="toggleFullscreen()" [attr.aria-label]="workspace().fullscreen() ? 'Exit full screen terminal' : 'Expand terminal to full screen'">{{ workspace().fullscreen() ? '↙ Exit full screen' : '⛶ Full screen' }}</button></div></div>
     @if (workspace().error()) { <div class="notice" role="alert">{{ workspace().error() }}<button (click)="workspace().error.set('')" aria-label="Dismiss terminal error">×</button></div> }
+    <div class="terminal-assist" aria-label="Command identification and suggestions">
+      <div class="assist-identity" [class.assist-known]="assistIdentity().kind === 'known'" [class.assist-partial]="assistIdentity().kind === 'partial'" [class.assist-unknown]="assistIdentity().kind === 'unknown'">
+        <span class="assist-dot"></span><span>{{ assistIdentity().label }}</span><small>{{ assistIdentity().detail }}</small>
+      </div>
+      <div class="assist-suggestions" aria-label="Completion suggestions">
+        @for (item of suggestions(); track item.value) { <button class="assist-chip" (click)="complete(item.value)" [title]="'Insert ' + item.value">{{ item.label }}<small>{{ item.kind }}</small></button> }
+        @if (!suggestions().length) { <span class="assist-hint">Type a command, path, or option to see suggestions</span> }
+      </div>
+    </div>
     <div #surfaces class="shell-surfaces" aria-label="Workspace terminals"></div>
     @if (!selectedTab()) { <div class="shell-empty">Choose a terminal from the sidebar, or press ＋ Terminal to open a shell.</div> }
     <div class="shell-foot"><span>{{ selectedTab()?.exitCode != null ? 'Shell exited · code ' + selectedTab()!.exitCode : 'Independent shell · stays open as you switch views' }}</span><span>⌃ C Interrupt · ⌃ D Exit</span></div>
@@ -77,6 +87,28 @@ export class Terminals implements AfterViewInit, OnDestroy {
   @ViewChild('surfaces') surfaces!: ElementRef<HTMLElement>;
   readonly renamingId=signal<string | null>(null);
   readonly savingName=signal(false);
+  readonly assist = signal<AssistState | null>(null);
+  readonly assistIdentity = computed(() => {
+    const state=this.assist();
+    if (!state) return {kind:'unknown',label:'Shell assistant',detail:this.workspace().selectedTab()?.hostId === 'local' ? 'Waiting for interactive Zsh' : 'Local Zsh suggestions only'};
+    if (!state.command) return {kind:'partial',label:'Command',detail:state.cwd};
+    if (state.recognized) return {kind:'known',label:state.command,detail:'Available in this shell'};
+    if (state.commands.some(value=>value.startsWith(state.command))) return {kind:'partial',label:state.command,detail:'Command suggestion'};
+    return {kind:'unknown',label:state.command,detail:'Not found in this shell'};
+  });
+  readonly suggestions = computed(() => {
+    const state=this.assist();if(!state)return [] as {value:string;label:string;kind:string}[];
+    const before=state.buffer.slice(0,state.cursor), token=before.split(/\s/).at(-1)||'';
+    const words=before.trim().split(/\s+/), command=words[0]||'';
+    const actions:Record<string,string[]>={npm:['install','ci','run','test','start','exec','publish','init','update'],node:['--version','--help','--inspect'],python:['--version','-m','-c'],python3:['--version','-m','-c'],java:['--version','-jar','-cp','--class-path'],javac:['-d','-cp','--class-path','--release','--version'],git:['status','add','commit','push','pull','switch','checkout','log','diff','branch'],docker:['ps','images','compose','run','exec','logs','pull','build','stop'],aws:['sts','s3','ec2','configure','--profile','--region'],go:['run','build','test','mod','get','fmt','vet'],gradle:['build','test','run','tasks','--version'],mvn:['clean','test','package','install','-DskipTests'],sudo:['-E','-u','-s'],chmod:['-R','u+x','g+w','o-rwx']};
+    const values: {value:string;label:string;kind:string}[]=[];
+    const add=(value:string,kind:string)=>{if(value.startsWith(token)&&value!==token&&!values.some(item=>item.value===value))values.push({value,label:value,kind});};
+    for(const value of state.paths)add(value,'path');
+    const commandPosition=words.length<=1&&!/\s$/.test(before);
+    if(commandPosition)for(const value of state.commands)add(value,'command');
+    else for(const value of actions[command]||[])add(value,'suggested');
+    return values.slice(0,12);
+  });
   @ViewChild('terminalName') set terminalName(input: ElementRef<HTMLInputElement> | undefined) {
     if(input) requestAnimationFrame(()=>{input.nativeElement.focus();input.nativeElement.select();});
   }
@@ -95,6 +127,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
   private frame = 0;
   private destroyed = false;
   private mounting = new Set<string>();
+  private assistantTabId: string | null = null;
   private focusId: string | null = null;
   private resizeListener = () => this.fit();
   private fullscreenEscape = (event: KeyboardEvent) => {
@@ -109,8 +142,9 @@ export class Terminals implements AfterViewInit, OnDestroy {
       if (!this.ready()) return;
       const workspace = this.workspace(), tabs = workspace.tabs(), selected = workspace.selected(), visible = this.visible();
       for (const [id, renderer] of this.renderers) if (!tabs.some(tab => tab.id === id)) {
-        renderer.abort.abort(); renderer.terminal.dispose(); renderer.element.remove(); this.renderers.delete(id);
+        renderer.abort.abort(); renderer.assist?.dispose(); renderer.terminal.dispose(); renderer.element.remove(); this.renderers.delete(id);
       }
+      if (selected !== this.assistantTabId) { this.assistantTabId = selected; this.assist.set(null); }
       // Keep existing emulators mounted, preserving scrollback and alternate screens.
       for (const tab of tabs) {
         const renderer = this.renderers.get(tab.id);
@@ -174,6 +208,13 @@ export class Terminals implements AfterViewInit, OnDestroy {
     terminal.textarea?.setAttribute('aria-label', 'Terminal input · ' + tab.name);
     const renderer: Renderer = { terminal, fit, element, abort: new AbortController(), next: 0, input: Promise.resolve(), queued: 0, exited: false };
     this.renderers.set(tab.id, renderer);
+    renderer.assist = terminal.parser.registerOscHandler(777, payload => {
+      const prefix='runtimebay-assist;';if(!payload.startsWith(prefix))return false;
+      try { const value=JSON.parse(payload.slice(prefix.length)) as AssistState;
+        if(typeof value.buffer==='string'&&Number.isInteger(value.cursor)&&typeof value.cwd==='string'&&typeof value.command==='string'&&typeof value.recognized==='boolean'&&Array.isArray(value.commands)&&Array.isArray(value.paths)&&this.workspace().selected()===tab.id){this.assistantTabId=tab.id;this.assist.set(value);}
+      } catch { /* Ignore malformed shell metadata. */ }
+      return true;
+    });
     terminal.attachCustomKeyEventHandler(event => {
       // Keep macOS copy/paste/select-all in the web view; Ctrl shortcuts belong to the shell.
       if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a') { terminal.selectAll(); event.preventDefault(); return false; }
@@ -220,6 +261,14 @@ export class Terminals implements AfterViewInit, OnDestroy {
       }
     }
   }
+  async complete(value:string) {
+    const state=this.assist(),tab=this.workspace().selectedTab();if(!state||!tab)return;
+    const before=state.buffer.slice(0,state.cursor), token=before.split(/\s/).at(-1)||'';
+    if(!value.startsWith(token))return;
+    const suffix=value.slice(token.length);if(!suffix)return;
+    const renderer=this.renderers.get(tab.id);if(!renderer||renderer.exited)return;
+    renderer.input=renderer.input.then(async()=>{await this.workspace().api('/'+tab.id+'/input','POST',{data:suffix},renderer.abort.signal);}).catch(error=>{if(!renderer.abort.signal.aborted)this.workspace().error.set((error as Error).message);});
+  }
   private fitRenderer(renderer?: Renderer) {
     if (!renderer || renderer.element.hidden || renderer.abort.signal.aborted) return;
     const buffer = renderer.terminal.buffer.active;
@@ -232,6 +281,6 @@ export class Terminals implements AfterViewInit, OnDestroy {
     window.removeEventListener('resize', this.resizeListener);
     window.removeEventListener('keydown', this.fullscreenEscape, true);
     this.destroyed = true; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.themeObserver?.disconnect();
-    for (const renderer of this.renderers.values()) { renderer.abort.abort(); renderer.terminal.dispose(); }
+    for (const renderer of this.renderers.values()) { renderer.abort.abort(); renderer.assist?.dispose(); renderer.terminal.dispose(); }
   }
 }

@@ -75,12 +75,43 @@ final class TerminalManager implements AutoCloseable {
         ProcessBuilder builder = new ProcessBuilder(arguments).directory(directory.toFile());
         builder.environment().keySet().removeIf(key -> key.startsWith("RUNTIMEBAY_"));
         builder.environment().put("TERM", "xterm-256color"); builder.environment().put("COLORTERM", "truecolor");
+        Path assistDirectory = null;
+        if (hostId.equals("local") && command.isEmpty()) assistDirectory = installZshAssist(builder);
         if (passwords != null && !hostId.equals("local")) passwords.configure(builder, hostId);
         // Never leave an unread stderr pipe behind; diagnostics do not contain shell output.
         builder.redirectError(ProcessBuilder.Redirect.DISCARD);
-        Shell shell = new Shell(tab.id(),tab.name(),tab.directory(),builder.start(),hostId,hostName);
+        Process process;
+        try { process = builder.start(); }
+        catch (IOException error) { deleteTree(assistDirectory); throw error; }
+        Shell shell = new Shell(tab.id(),tab.name(),tab.directory(),process,hostId,hostName,assistDirectory);
         shells.put(shell.id, shell); readers.submit(shell::read);
         return shell.view();
+    }
+    private static Path installZshAssist(ProcessBuilder builder) throws IOException {
+        Path directory = Files.createTempDirectory("rb-assist-");
+        try {
+            Path config = Files.createDirectory(directory.resolve("config"));
+            Path script = directory.resolve("runtimebay-assist.zsh");
+            try (InputStream resource = TerminalManager.class.getResourceAsStream("/dev/runtimebay/runtimebay-zsh-assist.zsh")) {
+                if (resource == null) throw new IOException("Terminal assistant resource is missing");
+                Files.copy(resource, script);
+            }
+            String home = System.getProperty("user.home");
+            String zshdir = builder.environment().getOrDefault("ZDOTDIR", home);
+            String bootstrap = "export ZDOTDIR=\"${RUNTIMEBAY_USER_ZDOTDIR:-" + quoteZsh(zshdir) + "}\"\n"
+                + "if [[ -r \"$ZDOTDIR/.zshenv\" ]]; then source \"$ZDOTDIR/.zshenv\"; fi\n"
+                + "source " + quoteZsh(script.toString()) + "\n";
+            Files.writeString(config.resolve(".zshenv"), bootstrap, StandardCharsets.UTF_8);
+            builder.environment().put("RUNTIMEBAY_USER_ZDOTDIR", zshdir);
+            builder.environment().put("ZDOTDIR", config.toString());
+            return directory;
+        } catch (IOException | RuntimeException error) { deleteTree(directory); throw error; }
+    }
+    private static String quoteZsh(String value) { return "'" + value.replace("'", "'\\''") + "'"; }
+    private static void deleteTree(Path root) {
+        if (root == null) return;
+        try (var paths = Files.walk(root)) { paths.sorted(Comparator.reverseOrder()).forEach(path -> { try { Files.deleteIfExists(path); } catch (IOException ignored) {} }); }
+        catch (IOException ignored) {}
     }
     private synchronized Shell shell(String id) {
         Shell shell = shells.get(id); if (shell == null) throw new ApiException(404, "Terminal not found"); return shell;
@@ -110,13 +141,14 @@ final class TerminalManager implements AutoCloseable {
         String name;
         final Process process;
         final String hostId, hostName;
+        final Path assistDirectory;
         final DataOutputStream input;
         final byte[] buffer = new byte[CAPACITY];
         long next;
         Integer exitCode;
         boolean closing;
-        Shell(String id, String name, String directory, Process process, String hostId, String hostName) {
-            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; input = new DataOutputStream(process.getOutputStream());
+        Shell(String id, String name, String directory, Process process, String hostId, String hostName, Path assistDirectory) {
+            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; this.assistDirectory = assistDirectory; input = new DataOutputStream(process.getOutputStream());
         }
         synchronized View view() { return new View(id, name, directory, exitCode, hostId, hostName,true); }
         void read() {
@@ -153,6 +185,7 @@ final class TerminalManager implements AutoCloseable {
             try {
                 if (!process.waitFor(3, TimeUnit.SECONDS)) { process.destroy(); if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly(); }
             } catch (InterruptedException e) { process.destroy(); Thread.currentThread().interrupt(); }
+            deleteTree(assistDirectory);
         }
     }
 }
