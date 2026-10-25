@@ -9,6 +9,7 @@ interface Output { data: string; next: number; truncated: boolean; exitCode: num
 export class TerminalWorkspace {
   readonly tabs = signal<ShellTab[]>([]);
   readonly selected = signal<string | null>(null);
+  readonly fullscreen = signal(false);
   readonly selectedTab = computed(() => this.tabs().find(tab => tab.id === this.selected()));
   readonly error = signal('');
   readonly creating = signal(false);
@@ -63,7 +64,7 @@ interface Renderer { terminal: Terminal; fit: FitAddon; element: HTMLElement; ab
       } @else {
         <h1><button class="shell-title-button" (click)="beginRename()" [disabled]="!selectedTab()" title="Click to rename terminal" aria-label="Rename terminal">{{ selectedTab()?.name || 'Terminals' }}</button></h1>
       }
-      <p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span></div>
+      <p class="subtitle">{{ selectedTab()?.directory || 'Open a terminal from the workspace sidebar.' }}</p></div><div class="shell-heading-actions"><span class="local-pill">{{ selectedTab()?.hostId && selectedTab()?.hostId !== 'local' ? 'SSH · ' + selectedTab()?.hostName : 'zsh · This Mac' }}</span><button class="secondary shell-fullscreen-toggle" (click)="toggleFullscreen()" [attr.aria-label]="workspace().fullscreen() ? 'Exit full screen terminal' : 'Expand terminal to full screen'">{{ workspace().fullscreen() ? '↙ Exit full screen' : '⛶ Full screen' }}</button></div></div>
     @if (workspace().error()) { <div class="notice" role="alert">{{ workspace().error() }}<button (click)="workspace().error.set('')" aria-label="Dismiss terminal error">×</button></div> }
     <div #surfaces class="shell-surfaces" aria-label="Workspace terminals"></div>
     @if (!selectedTab()) { <div class="shell-empty">Choose a terminal from the sidebar, or press ＋ Terminal to open a shell.</div> }
@@ -96,6 +97,12 @@ export class Terminals implements AfterViewInit, OnDestroy {
   private mounting = new Set<string>();
   private focusId: string | null = null;
   private resizeListener = () => this.fit();
+  private fullscreenEscape = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !this.workspace().fullscreen()) return;
+    if (event.target instanceof HTMLElement && event.target.closest('.shell-title-editor')) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    this.workspace().fullscreen.set(false);
+  };
   selectedTab() { return this.workspace().tabs().find(tab => tab.id === this.workspace().selected()); }
   constructor() {
     effect(() => {
@@ -123,6 +130,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
   }
   ngAfterViewInit() {
     window.addEventListener('resize', this.resizeListener);
+    window.addEventListener('keydown', this.fullscreenEscape, true);
     this.observer = new ResizeObserver(() => this.fit()); this.observer.observe(this.surfaces.nativeElement);
     this.themeObserver = new MutationObserver(() => {
       for (const renderer of this.renderers.values()) {
@@ -134,6 +142,10 @@ export class Terminals implements AfterViewInit, OnDestroy {
     });
     this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-appearance', 'data-palette'] });
     this.ready.set(true);
+  }
+  toggleFullscreen() {
+    this.workspace().fullscreen.update(value => !value);
+    requestAnimationFrame(() => this.renderers.get(this.workspace().selected() || '')?.terminal.focus());
   }
   private theme() {
     const style = getComputedStyle(document.documentElement);
@@ -218,6 +230,7 @@ export class Terminals implements AfterViewInit, OnDestroy {
   private fit() { if (this.visible()) this.fitRenderer(this.renderers.get(this.workspace().selected() || '')); }
   ngOnDestroy() {
     window.removeEventListener('resize', this.resizeListener);
+    window.removeEventListener('keydown', this.fullscreenEscape, true);
     this.destroyed = true; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.themeObserver?.disconnect();
     for (const renderer of this.renderers.values()) { renderer.abort.abort(); renderer.terminal.dispose(); }
   }

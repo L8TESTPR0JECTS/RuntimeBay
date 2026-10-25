@@ -1,4 +1,4 @@
-<div class="app-shell" [attr.inert]="sheet() || appearance.open() ? '' : null">
+<div class="app-shell" [class.terminal-fullscreen]="terminals.fullscreen()" [attr.inert]="sheet() || appearance.open() ? '' : null">
   <aside class="sidebar">
     <div class="brand"><span class="bay-logo brand-mark" aria-hidden="true"></span><div>Runtime Bay<small>A HOME FOR YOUR RUNTIMES</small></div></div>
     <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
