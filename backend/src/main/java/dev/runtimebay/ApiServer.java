@@ -47,6 +47,7 @@ final class ApiServer implements AutoCloseable {
         hostPasswords = new HostPasswords(hostSshControls, supervisor.resolveSibling("runtimebay-askpass"));
         machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls, hostPasswords));
         plans = new WorkflowPlans(store, runtimes, manifests, machineHosts::view);
+        docker.configureHosts(machineHosts::view,hostPasswords,hostSshControls);
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"), hostPasswords);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 32);
         databases = new DatabaseWorkspace(store, new CloudBeaverRuntime(docker), "http://127.0.0.1:" + port());

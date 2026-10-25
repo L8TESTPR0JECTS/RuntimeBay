@@ -17,7 +17,9 @@ import java.util.function.Consumer;
 
 final class DockerService implements AutoCloseable {
     record Result(int exitCode, String stdout, String stderr) {}
-    interface Commands { Result run(List<String> arguments, Duration timeout, Consumer<String> progress) throws IOException, InterruptedException; }
+    interface Commands {
+        default Result runOnHost(HostRegistry.Host host,List<String> arguments,Duration timeout,Consumer<String> progress)throws IOException,InterruptedException {throw new IOException("SSH container access is unavailable");}
+        Result run(List<String> arguments, Duration timeout, Consumer<String> progress) throws IOException, InterruptedException; }
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(12);
     private final Commands commands;
     private final ExecutorService jobs = Executors.newVirtualThreadPerTaskExecutor();
@@ -26,6 +28,23 @@ final class DockerService implements AutoCloseable {
     private final ReentrantReadWriteLock[] contextLocks = new ReentrantReadWriteLock[32];
     private final Object defaultContextLock = new Object();
     private volatile boolean closing;
+    private java.util.function.Supplier<HostRegistry.View> machines;
+    private Commands machineCommands;
+    void configureHosts(java.util.function.Supplier<HostRegistry.View> machines,HostPasswords passwords,Path controls){
+        this.machines=machines;machineCommands=commands==null?new DockerCommandRunner(null):commands;
+        if(machineCommands instanceof DockerCommandRunner runner)runner.configureHosts(passwords,controls);
+    }
+    private HostRegistry.Host machine(String name){
+        if(machines==null || !name.startsWith("machine-"))return null;
+        return machines.get().hosts().stream().filter(h->!h.local() && ("machine-"+h.id()).equals(name)).findFirst().orElseThrow(()->new ApiException(409,"This saved host was removed. Refresh hosts; no local fallback was used."));
+    }
+    static String machineEndpoint(HostRegistry.Host host){
+        try{return new URI("ssh",host.user().isEmpty()?null:host.user(),host.address(),host.port()==null?-1:host.port(),null,null,null).toASCIIString();}
+        catch(Exception error){throw new ApiException(400,"Invalid saved SSH destination");}
+    }
+    private static Environment machineEnvironment(HostRegistry.Host host){return new Environment("machine-"+host.id(),"Saved SSH machine · Docker on this host",machineEndpoint(host),"ssh",true,null,false,host.name());}
+    private static void editableContext(String name){if(name!=null && name.startsWith("machine-"))throw new ApiException(400,"This connection comes from Hosts. Edit the machine there.");}
+
     private static final class Pull {
         final String id = UUID.randomUUID().toString();
         final Environment environment;
@@ -43,7 +62,12 @@ final class DockerService implements AutoCloseable {
     static DockerService discover() {
         Path path = DockerCommandRunner.discover(); return new DockerService(path == null ? null : new DockerCommandRunner(path));
     }
-    Discovery environments() {
+    Discovery environments(){
+        var contexts=dockerContexts();var result=new ArrayList<>(contexts.environments());
+        if(machines!=null)for(var host:machines.get().hosts())if(!host.local())result.add(machineEnvironment(host));
+        return new Discovery(contexts.available() || result.stream().anyMatch(e->e.machineName()!=null),List.copyOf(result),result.isEmpty()?contexts.error():null);
+    }
+    private Discovery dockerContexts() {
         if (commands == null) return new Discovery(false, List.of(), "Install Docker CLI and a local engine such as Docker Desktop or Colima to connect.");
         try {
             List<JsonObject> rows = lines(execute(List.of("context", "ls", "--format", "{{json .}}"), READ_TIMEOUT, null).stdout());
@@ -97,6 +121,7 @@ final class DockerService implements AutoCloseable {
         throw new IOException("Socket symlink cycle");
     }
     Discovery makeDefaultEnvironment(String name, String expectedEndpoint) {
+        editableContext(name);
         if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
         synchronized (defaultContextLock) {
             Lock lock = contextLock(name).readLock(); lock.lock();
@@ -108,12 +133,14 @@ final class DockerService implements AutoCloseable {
         }
     }
     Environment addSshEnvironment(String name, String endpoint) {
+        editableContext(name);
         if (!validContext(name)) throw new ApiException(400, "Use letters, numbers, dots, dashes or underscores for the environment name");
         validateSsh(endpoint);
         execute(List.of("context", "create", name, "--description", "Runtime Bay SSH environment", "--docker", "host=" + endpoint), READ_TIMEOUT, null);
         return resolve(name, endpoint);
     }
     Environment updateEnvironment(String name, String expectedEndpoint, String endpoint, String description) {
+        editableContext(name);
         if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
         Lock lock = contextLock(name).writeLock();
         if (!lock.tryLock()) throw new ApiException(409, "This host is busy. Wait for its current operation to finish, then save again.");
@@ -121,6 +148,7 @@ final class DockerService implements AutoCloseable {
         finally { lock.unlock(); }
     }
     void removeEnvironment(String name, String expectedEndpoint) {
+        editableContext(name);
         if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
         if (name.equals("default")) throw new ApiException(400, "Docker manages the default context; it cannot be removed");
         if (expectedEndpoint == null || expectedEndpoint.isBlank()) throw new ApiException(400, "Refresh hosts before removing this environment");
@@ -172,6 +200,10 @@ final class DockerService implements AutoCloseable {
         return environment(updated.get(0).getAsJsonObject(), false);
     }
     Environment resolve(String name, String expectedEndpoint) {
+        if(name!=null && name.startsWith("machine-")){
+            var host=machine(name);if(host==null)throw new ApiException(409,"Saved host access is unavailable");var env=machineEnvironment(host);
+            if(!env.endpoint().equals(expectedEndpoint))throw new ApiException(409,"This host’s SSH destination changed. Refresh and select it again.");return env;
+        }
         if (!validContext(name)) throw new ApiException(400, "Invalid environment name");
         if (expectedEndpoint == null || expectedEndpoint.isBlank()) throw new ApiException(400, "Select a Docker environment first");
         JsonArray values = JsonParser.parseString(execute(List.of("context", "inspect", name), READ_TIMEOUT, null).stdout()).getAsJsonArray();
@@ -352,6 +384,11 @@ final class DockerService implements AutoCloseable {
         try {
             // An edit between inspection and execution must not retarget a queued command.
             resolve(env.name(), env.endpoint());
+            if(env.machineName()!=null){
+                try{var target=machine(env.name());if(!machineEndpoint(target).equals(env.endpoint()))throw new ApiException(409,"The host destination changed. Refresh and select it again.");return machineCommands.runOnHost(target,List.copyOf(args),timeout,progress);}
+                catch(InterruptedException error){Thread.currentThread().interrupt();throw new ApiException(503,"SSH Docker operation cancelled");}
+                catch(IOException error){throw new ApiException(502,"Could not access Docker on this host. Check SSH credentials under Hosts and Docker CLI/daemon access on the machine. "+error.getMessage());}
+            }
             var arguments = new ArrayList<>(List.of("--context", env.name())); arguments.addAll(args); return raw(arguments, timeout, progress);
         } finally { lock.unlock(); }
     }
@@ -385,6 +422,7 @@ final class DockerService implements AutoCloseable {
     @Override public void close() {
         synchronized (pulls) { closing = true; for (String id : List.copyOf(pulls.keySet())) cancel(id); }
         jobs.shutdownNow();
+        if(machineCommands!=commands && machineCommands instanceof AutoCloseable closeable)try{closeable.close();}catch(Exception ignored){}
         if (commands instanceof AutoCloseable closeable) try { closeable.close(); } catch (Exception e) { System.err.println("Docker cleanup failed: " + e.getMessage()); }
     }
 }

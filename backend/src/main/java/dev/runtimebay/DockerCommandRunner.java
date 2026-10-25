@@ -15,6 +15,9 @@ final class DockerCommandRunner implements DockerService.Commands, AutoCloseable
     private final Set<Process> running = ConcurrentHashMap.newKeySet();
     private final Semaphore permits = new Semaphore(6);
     private volatile boolean closing;
+    private HostPasswords passwords;
+    private Path controls;
+    void configureHosts(HostPasswords passwords,Path controls){this.passwords=passwords;this.controls=controls;}
 
     DockerCommandRunner(Path executable) { this.executable = executable; }
     static Path discover() {
@@ -26,16 +29,36 @@ final class DockerCommandRunner implements DockerService.Commands, AutoCloseable
         return candidates.stream().map(Path::of).filter(Files::isExecutable).findFirst().map(Path::toAbsolutePath).orElse(null);
     }
     @Override public DockerService.Result run(List<String> arguments, Duration timeout, Consumer<String> progress) throws IOException, InterruptedException {
+        return execute(arguments,timeout,progress,null);
+    }
+    @Override public DockerService.Result runOnHost(HostRegistry.Host host,List<String> arguments,Duration timeout,Consumer<String> progress)throws IOException,InterruptedException {
+        return execute(arguments,timeout,progress,host);
+    }
+    private DockerService.Result execute(List<String> arguments,Duration timeout,Consumer<String> progress,HostRegistry.Host host)throws IOException,InterruptedException {
         if (closing) throw new IOException("Container integration is shutting down");
         if (!permits.tryAcquire(5, TimeUnit.SECONDS)) throw new ApiException(429, "Docker is busy. Try again shortly.");
         Process process = null;
         try {
             if (closing) throw new IOException("Container integration is shutting down");
-            List<String> command = new ArrayList<>(); command.add(executable.toString()); command.addAll(arguments);
+            Path environmentFile=null;
+            if(host!=null && arguments.size()>2 && arguments.get(0).equals("container") && arguments.get(1).equals("create")){
+                int at=arguments.indexOf("--env-file"), end=arguments.indexOf("--");
+                if(at>=0 && at<end){environmentFile=Path.of(arguments.get(at+1));arguments=new ArrayList<>(arguments);arguments.set(at+1,"/dev/stdin");}
+            }
+            List<String> command;
+            if(host==null){if(executable==null)throw new IOException("Docker CLI is not installed locally");command=new ArrayList<>();command.add(executable.toString());command.addAll(arguments);}
+            else {
+                command=new ArrayList<>(HostRegistry.sshArguments(host,false,controls));
+                var remote=new ArrayList<>(List.of("env","-u","DOCKER_HOST","-u","DOCKER_CONTEXT","docker","--context","default"));remote.addAll(arguments);
+                String shell=remote.stream().map(DockerCommandRunner::quote).collect(java.util.stream.Collectors.joining(" "));
+                command.add("\"${SHELL:-/bin/sh}\" -lc "+quote(shell));
+            }
             ProcessBuilder builder = new ProcessBuilder(command);
+            if(environmentFile!=null)builder.redirectInput(environmentFile.toFile());
             cleanEnvironment(builder.environment());
             builder.environment().put("PATH", "/Applications/Docker.app/Contents/Resources/bin:/opt/homebrew/bin:/usr/local/bin:" + builder.environment().getOrDefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"));
             builder.environment().put("SSH_ASKPASS_REQUIRE", "never");
+            if(host!=null && passwords!=null){passwords.restore(host);passwords.configure(builder,host.id());}
             process = builder.start();
             running.add(process);
             if (closing) throw new IOException("Container integration is shutting down");
@@ -54,6 +77,7 @@ final class DockerCommandRunner implements DockerService.Commands, AutoCloseable
             permits.release();
         }
     }
+    private static String quote(String value){return "'"+value.replace("'","'\"'\"'")+"'";}
     static void cleanEnvironment(Map<String, String> environment) {
         environment.keySet().removeIf(k -> k.startsWith("RUNTIMEBAY_"));
         for (String key : List.of("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH")) environment.remove(key);

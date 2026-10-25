@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 final class DockerModels {
-    record Environment(String name, String description, String endpoint, String transport, boolean supported, String reason, boolean current) {}
+    record Environment(String name, String description, String endpoint, String transport, boolean supported, String reason, boolean current, String machineName) {
+        Environment(String name,String description,String endpoint,String transport,boolean supported,String reason,boolean current){this(name,description,endpoint,transport,supported,reason,current,null);}
+    }
     record Discovery(boolean available, List<Environment> environments, String error) {}
     record Engine(String name, String version, String operatingSystem, String architecture, int cpus, long memory, int containers, int running, int images) {}
     record Container(String id, String name, String image, String state, String status, String ports, String created, String composeProject, String workspaceProject) {}
