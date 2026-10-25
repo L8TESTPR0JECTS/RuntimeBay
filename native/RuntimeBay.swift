@@ -2,11 +2,16 @@ import AppKit
 import WebKit
 import Security
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKScriptMessageHandler, NSMenuItemValidation {
-    var window: NSWindow!
-    var webView: WKWebView!
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler, NSMenuItemValidation {
+    private var workspaceWindows: [ObjectIdentifier: (window: NSWindow, webView: WKWebView)] = [:]
+    var window: NSWindow? { NSApp.keyWindow ?? workspaceWindows.values.first?.window }
+    var webView: WKWebView? {
+        if let keyWindow = NSApp.keyWindow, let workspace = workspaceWindows[ObjectIdentifier(keyWindow)] { return workspace.webView }
+        return workspaceWindows.values.first?.webView
+    }
     var backend: Process?
     var origin: String?
+    var sessionToken: String?
     var quitting = false
     var zoomPercent = WorkspaceZoom.normalized(UserDefaults.standard.integer(forKey: WorkspaceZoom.preferenceKey))
 
@@ -18,7 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let iconURL = FileManager.default.fileExists(atPath: bundledIcon.path) ? bundledIcon : executableDirectory.appendingPathComponent("RuntimeBay.icns")
         if let icon = NSImage(contentsOf: iconURL) { NSApp.applicationIconImage = icon }
         makeMenu()
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 850),
+        _ = createWorkspaceWindow()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.global(qos: .userInitiated).async { self.startBackend() }
+    }
+    @discardableResult
+    private func createWorkspaceWindow() -> NSWindow {
+        let executableDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        let resources = Bundle.main.resourceURL!
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 850),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Runtime Bay"
         window.minSize = NSSize(width: 960, height: 660)
@@ -28,11 +42,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         config.userContentController.addUserScript(WKUserScript(source: "window.runtimeBayNative = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         let workspaceView = WorkspaceWebView(frame: window.contentView!.bounds, configuration: config)
         workspaceView.zoomCommand = { [weak self] direction in self?.changeZoom(direction) }
-        webView = workspaceView
-        webView.pageZoom = Double(zoomPercent) / 100
-        webView.autoresizingMask = [.width, .height]
-        webView.navigationDelegate = self
-        window.contentView = webView
+        workspaceView.pageZoom = Double(zoomPercent) / 100
+        workspaceView.autoresizingMask = [.width, .height]
+        workspaceView.navigationDelegate = self
+        window.contentView = workspaceView
+        window.delegate = self
+        workspaceWindows[ObjectIdentifier(window)] = (window, workspaceView)
         let webRoot = ProcessInfo.processInfo.environment["RUNTIMEBAY_WEB_ROOT"]
         let logoURL = webRoot.map { URL(fileURLWithPath: $0).appendingPathComponent("assets/runtime-bay.png") }
             ?? resources.appendingPathComponent("runtime-bay.png")
@@ -40,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let visualResources = FileManager.default.fileExists(atPath: resources.appendingPathComponent("loading-startup.js").path) ? resources : executableDirectory
         let loadingCSS = (try? String(contentsOf: visualResources.appendingPathComponent("loading.css"), encoding: .utf8)) ?? ""
         let loadingScript = (try? String(contentsOf: visualResources.appendingPathComponent("loading-startup.js"), encoding: .utf8)) ?? ""
-        webView.loadHTMLString("""
+        workspaceView.loadHTMLString("""
             <!doctype html><html lang="en"><head><meta name="color-scheme" content="light dark"><style>
             :root{--paper:#f6f6f0;--ink:#203238;--accent:#167d70;--focus:#3d9e8b;--runtime-bay-logo:url('data:image/png;base64,\(logo)')}
             body{margin:0;min-height:100vh;display:grid;place-content:center;background:var(--paper);color:var(--ink);font:14px -apple-system}
@@ -48,9 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             \(loadingCSS)
             </style></head><body><main><h1>Runtime Bay</h1></main><script>\(loadingScript)</script></body></html>
             """, baseURL: nil)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        DispatchQueue.global(qos: .userInitiated).async { self.startBackend() }
+        if origin != nil { loadWorkspace(in: workspaceView) }
+        return window
+    }
+    private func loadWorkspace(in webView: WKWebView) {
+        guard let origin, let sessionToken else { return }
+        webView.configuration.userContentController.addUserScript(WKUserScript(source: "window.runtimeBaySession = '\(sessionToken)';", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        webView.load(URLRequest(url: URL(string: origin + "/")!))
     }
     func makeMenu() {
         let main = NSMenu()
@@ -72,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let file = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(commandItem("Import Workflow…", #selector(importWorkflow), "o"))
+        fileMenu.addItem(commandItem("New Window", #selector(newWindow), "n", [.command, .shift]))
         fileMenu.addItem(commandItem("New Terminal", #selector(newTerminal), "t"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -125,10 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
     func changeZoom(_ direction: Int) {
         zoomPercent = direction == 0 ? 100 : WorkspaceZoom.next(zoomPercent, direction: direction)
-        webView?.pageZoom = Double(zoomPercent) / 100
+        for workspace in workspaceWindows.values { workspace.webView.pageZoom = Double(zoomPercent) / 100 }
         UserDefaults.standard.set(zoomPercent, forKey: WorkspaceZoom.preferenceKey)
         // xterm renders into a canvas: explicitly refit it when page zoom changes.
-        webView?.evaluateJavaScript("window.dispatchEvent(new Event('resize'))")
+        for workspace in workspaceWindows.values { workspace.webView.evaluateJavaScript("window.dispatchEvent(new Event('resize'))") }
     }
     @objc func zoomIn() { changeZoom(1) }
     @objc func zoomOut() { changeZoom(-1) }
@@ -143,6 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('runtimebay:command', {detail: '\(command)'}))")
     }
     @objc func importWorkflow() { workspaceCommand("import-workflow") }
+    @objc func newWindow() {
+        let newWindow = createWorkspaceWindow()
+        newWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
     @objc func newTerminal() { workspaceCommand("new-terminal") }
     @objc func previousTerminal() { workspaceCommand("previous-terminal") }
     @objc func nextTerminal() { workspaceCommand("next-terminal") }
@@ -152,6 +177,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
     }
     @objc func customizeAppearance() { webView?.evaluateJavaScript("window.dispatchEvent(new Event('runtimebay:customize'))") }
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        workspaceWindows.removeValue(forKey: ObjectIdentifier(window))
+    }
     func startBackend() {
         do {
             let env = ProcessInfo.processInfo.environment
@@ -176,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             var bytes = [UInt8](repeating: 0, count: 32)
             guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw NSError(domain: "Runtime Bay", code: 2) }
             let token = bytes.map { String(format: "%02x", $0) }.joined()
+            sessionToken = token
             let process = Process()
             let output = Pipe()
             process.executableURL = URL(fileURLWithPath: java)
@@ -210,8 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             timeout.cancel()
             DispatchQueue.main.async {
                 self.origin = "http://127.0.0.1:\(port)"
-                self.webView.configuration.userContentController.addUserScript(WKUserScript(source: "window.runtimeBaySession = '\(token)';", injectionTime: .atDocumentStart, forMainFrameOnly: true))
-                self.webView.load(URLRequest(url: URL(string: self.origin! + "/")!))
+                for workspace in self.workspaceWindows.values { self.loadWorkspace(in: workspace.webView) }
             }
             // Drain output so the engine can always write diagnostics without blocking.
             _ = output.fileHandleForReading.readDataToEndOfFile()
@@ -222,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         alert.messageText = "Runtime Bay needs attention"
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
-        alert.beginSheetModal(for: window)
+        if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
     }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let url = message.frameInfo.request.url,
@@ -242,11 +271,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Import project"
-        panel.beginSheetModal(for: window) { response in
+        guard let parentWindow = window, let targetWebView = webView else { return }
+        panel.beginSheetModal(for: parentWindow) { response in
             guard response == .OK, let path = panel.url?.path,
                   let data = try? JSONSerialization.data(withJSONObject: [path]),
                   let json = String(data: data, encoding: .utf8) else { return }
-            self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('runtimebay:folder', {detail: \(json)[0]}))")
+            targetWebView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('runtimebay:folder', {detail: \(json)[0]}))")
         }
     }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
