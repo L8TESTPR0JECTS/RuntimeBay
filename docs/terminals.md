@@ -14,6 +14,12 @@ Tabs appear beneath the projects in a shared scrolling sidebar. Their names are 
 - Terminal input and background output do not trigger the global loading overlay. The create button briefly disables while a shell is being created; the terminal workspace opens immediately.
 - macOS copy/paste shortcuts use the normal web-view clipboard actions. Ctrl shortcuts are delivered to the shell, including Ctrl+K. Cmd+K retains Runtime Bay's project import shortcut.
 
+## Command assistance
+
+The terminal assistant reads Zsh's editable command line; it does not inspect terminal output or execute the command being typed. Zsh's parse-only check highlights malformed shell syntax, and command lookup distinguishes available commands from misspellings. For option checks and flag suggestions, Runtime Bay reads the installed command's local manual synopsis when it can parse one, and uses completion-protocol checks only for explicitly registered Cobra CLIs. This covers documented native utilities such as `ls`, `touch`, `cp`, `mv`, `rm`, `mkdir`, `chmod`, and `chown`, including short-option clusters and `--` end-of-options handling. After a command and space, available flags appear in the suggestion bar; typing `-` filters them to matching options. Path chips show only the untyped portion of each match, so typing `~/Documents/Dev/` yields entries like `RuntimeBay/`; directory navigation commands such as `cd` and `pushd` omit files. Selecting a suggestion types the completion into the shell and never runs it. A flag is marked invalid only when that metadata excludes it. Commands without usable metadata remain unjudged, avoiding guessed errors; option value types and every command-specific semantic rule are not universally validated.
+
+The option metadata is cached for the life of the shell. It follows the tools and manual pages installed on that machine, so macOS and tool-version differences are reflected without a bundled, stale option list.
+
 ## Ownership and transport
 
 `TerminalManager` owns the supervisor processes. `native/TerminalLauncher.c` calls `forkpty`, making the shell leader of a fresh session with a controlling terminal. Its stdin pipe is also its owner watchdog: EOF from Java triggers cleanup. Unlike configured service commands, interactive jobs can have different process groups; cleanup enumerates only processes whose live session ID matches this shell's captured session, sends TERM, then KILL. Processes that deliberately create another session to daemonize are outside this ownership model.

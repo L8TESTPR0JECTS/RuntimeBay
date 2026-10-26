@@ -11,6 +11,7 @@ import java.util.concurrent.*;
 final class TerminalManager implements AutoCloseable {
     record View(String id, String name, String directory, Integer exitCode, String hostId, String hostName, boolean connected) {}
     record Output(String data, long next, boolean truncated, Integer exitCode) {}
+    record AssistState(String buffer, int cursor, String cwd, String command, boolean recognized, List<String> commands, List<String> paths, List<String> options) {}
     private final ProjectStore projects;
     private final Path launcher;
     private final HostPasswords passwords;
@@ -87,6 +88,12 @@ final class TerminalManager implements AutoCloseable {
         shells.put(shell.id, shell); readers.submit(shell::read);
         return shell.view();
     }
+    AssistState assist(String id) {
+        Shell shell = shell(id);
+        if (shell.assistFile == null || !Files.isRegularFile(shell.assistFile)) return null;
+        try { return gson.fromJson(Files.readString(shell.assistFile), AssistState.class); }
+        catch (IOException | RuntimeException ignored) { return null; }
+    }
     private static Path installZshAssist(ProcessBuilder builder) throws IOException {
         Path directory = Files.createTempDirectory("rb-assist-");
         try {
@@ -98,12 +105,29 @@ final class TerminalManager implements AutoCloseable {
             }
             String home = System.getProperty("user.home");
             String zshdir = builder.environment().getOrDefault("ZDOTDIR", home);
-            String bootstrap = "export ZDOTDIR=\"${RUNTIMEBAY_USER_ZDOTDIR:-" + quoteZsh(zshdir) + "}\"\n"
+            String configPath = quoteZsh(config.toString());
+            String userPath = quoteZsh(zshdir);
+            String envBootstrap = "export RUNTIMEBAY_ASSIST_CONFIG_DIR=" + configPath + "\n"
+                + "export RUNTIMEBAY_ASSIST_USER_ZDOTDIR=" + userPath + "\n"
+                + "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_USER_ZDOTDIR\"\n"
                 + "if [[ -r \"$ZDOTDIR/.zshenv\" ]]; then source \"$ZDOTDIR/.zshenv\"; fi\n"
-                + "source " + quoteZsh(script.toString()) + "\n";
-            Files.writeString(config.resolve(".zshenv"), bootstrap, StandardCharsets.UTF_8);
-            builder.environment().put("RUNTIMEBAY_USER_ZDOTDIR", zshdir);
+                + "export RUNTIMEBAY_ASSIST_USER_ZDOTDIR=\"${ZDOTDIR:-$RUNTIMEBAY_ASSIST_USER_ZDOTDIR}\"\n"
+                + "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_CONFIG_DIR\"\n";
+            String profileBootstrap = "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_USER_ZDOTDIR\"\n"
+                + "if [[ -r \"$ZDOTDIR/.zprofile\" ]]; then source \"$ZDOTDIR/.zprofile\"; fi\n"
+                + "export RUNTIMEBAY_ASSIST_USER_ZDOTDIR=\"${ZDOTDIR:-$RUNTIMEBAY_ASSIST_USER_ZDOTDIR}\"\n"
+                + "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_CONFIG_DIR\"\n";
+            String rcBootstrap = "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_USER_ZDOTDIR\"\n"
+                + "if [[ -r \"$ZDOTDIR/.zshrc\" ]]; then source \"$ZDOTDIR/.zshrc\"; fi\n"
+                + "export RUNTIMEBAY_ASSIST_USER_ZDOTDIR=\"${ZDOTDIR:-$RUNTIMEBAY_ASSIST_USER_ZDOTDIR}\"\n"
+                + "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_CONFIG_DIR\"\n"
+                + "source " + quoteZsh(script.toString()) + "\n"
+                + "export ZDOTDIR=\"$RUNTIMEBAY_ASSIST_USER_ZDOTDIR\"\n";
+            Files.writeString(config.resolve(".zshenv"), envBootstrap, StandardCharsets.UTF_8);
+            Files.writeString(config.resolve(".zprofile"), profileBootstrap, StandardCharsets.UTF_8);
+            Files.writeString(config.resolve(".zshrc"), rcBootstrap, StandardCharsets.UTF_8);
             builder.environment().put("ZDOTDIR", config.toString());
+            builder.environment().put("RUNTIMEBAY_ASSIST_FILE", directory.resolve("assist.json").toString());
             return directory;
         } catch (IOException | RuntimeException error) { deleteTree(directory); throw error; }
     }
@@ -142,13 +166,14 @@ final class TerminalManager implements AutoCloseable {
         final Process process;
         final String hostId, hostName;
         final Path assistDirectory;
+        final Path assistFile;
         final DataOutputStream input;
         final byte[] buffer = new byte[CAPACITY];
         long next;
         Integer exitCode;
         boolean closing;
         Shell(String id, String name, String directory, Process process, String hostId, String hostName, Path assistDirectory) {
-            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; this.assistDirectory = assistDirectory; input = new DataOutputStream(process.getOutputStream());
+            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; this.assistDirectory = assistDirectory; this.assistFile = assistDirectory == null ? null : assistDirectory.resolve("assist.json"); input = new DataOutputStream(process.getOutputStream());
         }
         synchronized View view() { return new View(id, name, directory, exitCode, hostId, hostName,true); }
         void read() {

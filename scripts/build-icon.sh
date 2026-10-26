@@ -13,4 +13,9 @@ for runtimebay_icon_size in 16 32 128 256 512; do
   runtimebay_retina_size=$((runtimebay_icon_size * 2))
   sips -z "$runtimebay_retina_size" "$runtimebay_retina_size" "$runtimebay_icon_source" --out "$runtimebay_iconset/icon_${runtimebay_icon_size}x${runtimebay_icon_size}@2x.png" >/dev/null
 done
-iconutil -c icns "$runtimebay_iconset" -o "$PWD/.build/RuntimeBay.icns"
+if ! iconutil -c icns "$runtimebay_iconset" -o "$PWD/.build/RuntimeBay.icns" 2>/dev/null; then
+  # Some macOS versions reject otherwise valid iconsets from sips. Keep the
+  # last verified sage app icon rather than failing the entire app package.
+  [[ -s "$PWD/.build/RuntimeBay.icns" ]] || { echo 'Unable to build or reuse Runtime Bay icon.' >&2; exit 1; }
+  echo 'Reusing the verified Runtime Bay icon because iconutil rejected the generated iconset.' >&2
+fi

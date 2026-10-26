@@ -75,6 +75,7 @@ export class Appearance {
   choosePalette(palette: string) { if (PALETTES.some(p => p.id === palette)) this.change({ palette }); }
   chooseMode(appearance: AppearanceMode) { this.change({ appearance }); }
   chooseFontSize(value: number) { if (isFontSize(value)) this.change({ fontSize: value }); }
+  chooseSuggestionsEnabled(suggestionsEnabled: boolean) { this.change({ suggestionsEnabled }); }
   private change(update: Partial<Preferences>) {
     if (this.loading()) return;
     const next = { ...this.preferences(), ...update };

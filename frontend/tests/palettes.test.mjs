@@ -25,7 +25,8 @@ test('all twelve palettes meet text contrast in both appearances', () => {
 });
 test('appearance preferences reject unsupported or malformed selections', () => {
   assert.ok(isPreferences(DEFAULT_PREFERENCES));
-  for(const update of [{palette:'unknown'},{appearance:'auto'},{version:2},{onboardingComplete:'true'}]) assert.equal(isPreferences({...DEFAULT_PREFERENCES,...update}),false);
+  for(const update of [{palette:'unknown'},{appearance:'auto'},{version:2},{onboardingComplete:'true'},{suggestionsEnabled:'true'}]) assert.equal(isPreferences({...DEFAULT_PREFERENCES,...update}),false);
+  assert.ok(isPreferences({ ...DEFAULT_PREFERENCES, suggestionsEnabled: false }));
   assert.equal(isPreferences(null),false);
 });
 test('font sizes are bounded whole numbers and text scale is independent of page zoom', () => {

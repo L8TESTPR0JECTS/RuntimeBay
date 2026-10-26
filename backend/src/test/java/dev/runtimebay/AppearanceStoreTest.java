@@ -21,7 +21,7 @@ class AppearanceStoreTest {
     @Test void rejectsInvalidChoicesWithoutChangingSavedPreferences() throws Exception {
         AppearanceStore store = new AppearanceStore(directory);
         var original = store.save(preferences());
-        for (String field : new String[]{"palette", "appearance", "onboardingComplete", "version"}) {
+        for (String field : new String[]{"palette", "appearance", "onboardingComplete", "version", "suggestionsEnabled"}) {
             var invalid = preferences(); invalid.addProperty(field, "invalid");
             assertThrows(ApiException.class, () -> store.save(invalid));
         }
@@ -36,14 +36,17 @@ class AppearanceStoreTest {
         Files.writeString(directory.resolve("appearance.json"), preferences().toString());
         AppearanceStore store = new AppearanceStore(directory);
         assertEquals(14, store.get().fontSize());
+        assertTrue(store.get().suggestionsEnabled());
         assertEquals("copper", store.get().palette());
         assertTrue(store.get().onboardingComplete());
-        var larger = preferences(); larger.addProperty("fontSize", 20);
+        var larger = preferences(); larger.addProperty("fontSize", 20); larger.addProperty("suggestionsEnabled", false);
         store.save(larger);
         assertEquals(20, new AppearanceStore(directory).get().fontSize());
+        assertFalse(new AppearanceStore(directory).get().suggestionsEnabled());
         // An older client saving a palette must not reset a newer font preference.
         store.save(preferences());
         assertEquals(20, new AppearanceStore(directory).get().fontSize());
+        assertFalse(new AppearanceStore(directory).get().suggestionsEnabled());
     }
     @Test void rejectsInvalidFontSizesWithoutOverwritingSavedPreferences() throws Exception {
         AppearanceStore store = new AppearanceStore(directory);

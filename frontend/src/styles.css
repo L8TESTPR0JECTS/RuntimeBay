@@ -1390,6 +1390,8 @@ input,textarea,select {
 .font-size-controls>span:first-child{font-size:12px}
 .font-size-controls>span:last-of-type{font-size:20px}
 .font-size-controls button{background:var(--surface-soft);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:calc(11px * var(--font-scale, 1))}
+.suggestions-toggle{min-width:56px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface-soft);color:var(--ink);font-size:calc(11px * var(--font-scale,1));font-weight:650}
+.suggestions-toggle[aria-checked="true"]{border-color:var(--accent);background:var(--accent);color:var(--on-accent)}
 .appearance-drawer>*{flex-shrink:0}
 .sidebar nav button,.shell-tab-select>span:last-child{min-width:0;overflow-wrap:anywhere}
 

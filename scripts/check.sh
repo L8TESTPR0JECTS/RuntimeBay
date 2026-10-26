@@ -14,4 +14,5 @@ mvn -q -f backend/pom.xml -Dmaven.repo.local="$PWD/.cache/m2" test
   go vet ./...
 )
 npm run test:ui
+zsh scripts/test-terminal-assist.zsh
 npm run build:web

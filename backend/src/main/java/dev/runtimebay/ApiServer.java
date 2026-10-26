@@ -318,6 +318,7 @@ final class ApiServer implements AutoCloseable {
                 catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new ApiException(503, "Terminal connection closed"); }
                 return;
             }
+            if (parts[3].equals("assist") && method.equals("GET")) { json(e, 200, terminals.assist(id)); return; }
             if (parts[3].equals("input") && method.equals("POST")) { terminals.input(id, string(body(e), "data")); json(e, 200, Map.of("ok", true)); return; }
             if (parts[3].equals("resize") && method.equals("POST")) {
                 JsonObject value = body(e);

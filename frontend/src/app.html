@@ -119,7 +119,7 @@
     </div>
     }
     <app-databases [projectId]="projectId() || ''" [projectName]="project()?.name || ''" [projectPath]="project()?.path || ''" [session]="sessionToken" [visible]="view() === 'databases'" (runtime)="view.set('runtime')"></app-databases>
-    <app-terminals [workspace]="terminals" [visible]="view() === 'terminal'"></app-terminals>
+    <app-terminals [workspace]="terminals" [visible]="view() === 'terminal'" [suggestionsEnabled]="appearance.preferences().suggestionsEnabled"></app-terminals>
   </main>
 </div>
 @if (sheet()) {
@@ -161,6 +161,8 @@
       <div class="font-size-heading"><h3><label for="workspace-font-size">Font size</label></h3><output for="workspace-font-size">{{ appearance.preferences().fontSize }} px</output></div>
       <div class="font-size-controls"><span aria-hidden="true">A</span><input id="workspace-font-size" type="range" min="12" max="20" step="1" [ngModel]="appearance.preferences().fontSize" (ngModelChange)="appearance.chooseFontSize(+$event)" [disabled]="appearance.loading()" [attr.aria-valuetext]="appearance.preferences().fontSize + ' pixels base font size'"><span aria-hidden="true">A</span><button (click)="appearance.chooseFontSize(appearance.defaultFontSize)" [disabled]="appearance.loading() || appearance.preferences().fontSize === appearance.defaultFontSize">Reset</button></div>
       <p class="appearance-note">Resize workspace and terminal text independently of zoom. Database editors keep their own font settings.</p>
+      <div class="font-size-heading"><h3>Terminal suggestions</h3><button class="suggestions-toggle" role="switch" [attr.aria-checked]="appearance.preferences().suggestionsEnabled" (click)="appearance.chooseSuggestionsEnabled(!appearance.preferences().suggestionsEnabled)" [disabled]="appearance.loading()">{{ appearance.preferences().suggestionsEnabled ? 'On' : 'Off' }}</button></div>
+      <p class="appearance-note">Show command, path, and flag suggestions while typing in terminals.</p>
       <h3>Color palette</h3><div class="palette-grid" role="group" aria-label="Color palette">
         @for (palette of appearance.palettes; track palette.id) {
           <button class="palette-option" [attr.aria-label]="palette.name + ' palette'" [attr.aria-pressed]="appearance.preferences().palette === palette.id" (click)="appearance.choosePalette(palette.id)" [disabled]="appearance.loading()"><span class="palette-swatch" [style.background]="appearance.swatch(palette)">@if (appearance.preferences().palette === palette.id) { <b>✓</b> }</span><span>{{ palette.name }}</span></button>
