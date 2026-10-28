@@ -8,7 +8,7 @@
     <div class="workspace-items">
     <nav aria-label="Projects">
       @for (p of projects(); track p.id) {
-        <button class="project-link" [class.selected]="p.id === projectId() && (view() === 'runtime' || view() === 'databases')" (click)="selectProject(p.id)">
+        <button class="project-link" [class.selected]="p.id === projectId() && (view() === 'runtime' || view() === 'databases' || view() === 'workflow-terminal')" (click)="selectProject(p.id)">
           <span class="project-monogram">{{ p.name.slice(0, 2).toUpperCase() }}</span>
           <span class="project-link-text">{{ p.name }}<small>{{ p.services.length }} {{ p.services.length === 1 ? 'service' : 'services' }}</small></span>
           <span class="chevron">›</span>
@@ -18,7 +18,7 @@
     </nav>
     <div class="terminal-section-heading"><span>TERMINALS</span><button class="new-terminal" (click)="newTerminal()" [disabled]="terminals.creating()" aria-label="New terminal" title="Open a terminal on your default host">＋ Terminal</button></div>
     <nav class="shell-tabs" aria-label="Terminal tabs">
-      @for (tab of terminals.tabs(); track tab.id) {
+      @for (tab of sidebarTerminals(); track tab.id) {
         <div class="shell-tab" [class.selected]="view() === 'terminal' && terminals.selected() === tab.id">
           <button class="shell-tab-select" (click)="selectTerminal(tab.id)" [attr.aria-current]="view() === 'terminal' && terminals.selected() === tab.id ? 'page' : null"><span aria-hidden="true">›_</span><span>{{ tab.name }}<small>{{ tab.exitCode !== null ? 'Exited · ' + tab.exitCode : tab.hostId && tab.hostId !== 'local' ? 'SSH · ' + tab.hostName : 'zsh' }}</small></span></button>
           <button class="shell-tab-close" [attr.aria-label]="'Close ' + tab.name" [title]="tab.hostId && tab.hostId !== 'local' ? 'Disconnect SSH terminal' : 'Close terminal and stop its processes'" [disabled]="terminals.closing().includes(tab.id)" (click)="terminals.close(tab.id)">×</button>
@@ -29,7 +29,7 @@
     <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.5.0</small></div>
   </aside>
   <main>
-    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' || view() === 'databases' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> {{ view() === 'hosts' ? 'YOUR MACHINES' : view() === 'terminal' ? (terminals.selectedTab()?.hostName || 'This Mac') : 'ON YOUR MAC' }}</span></header>
+    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' || view() === 'databases' || view() === 'workflow-terminal' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> {{ view() === 'hosts' ? 'YOUR MACHINES' : view() === 'terminal' ? (terminals.selectedTab()?.hostName || 'This Mac') : 'ON YOUR MAC' }}</span></header>
     @if (view() === 'hosts') {
       <app-hosts [session]="sessionToken" [terminalBusy]="terminals.creating()" (openTerminal)="openHostTerminal($event)"></app-hosts>
     } @else if (view() === 'containers') {
@@ -40,8 +40,8 @@
         <div class="notice" role="alert">The local engine is disconnected. Reopen Runtime Bay to reconnect. <button (click)="refreshForeground()">Retry</button></div>
       }
       @if (error()) { <div class="notice" role="alert">{{ error() }}<button aria-label="Dismiss error" (click)="error.set('')">×</button></div> }
-      <div class="page-title"><div><div class="eyebrow">YOUR LOCAL DEVELOPMENT, IN ORDER</div><h1>{{ project()?.name || 'A place for everything running.' }}</h1><p class="subtitle">{{ project()?.path || 'Bring your services together. Keep your flow.' }}</p></div><span class="title-symbol" aria-hidden="true">◒</span></div>
-      @if (project()) { <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="true" class="selected">Runtime</button><button role="tab" aria-selected="false" (click)="view.set('databases')">Databases</button></div> }
+      <div class="page-title"><div><div class="eyebrow">YOUR LOCAL DEVELOPMENT, IN ORDER</div><h1>{{ project()?.name || 'A place for everything running.' }}</h1>@if (project()) { <button class="workflow-path" (click)="openWorkflowTerminal()" [disabled]="terminals.creating()" title="Open a terminal in this workflow folder">{{ project()!.path }} <span aria-hidden="true">↵</span></button> } @else { <p class="subtitle">Bring your services together. Keep your flow.</p> }</div><span class="title-symbol" aria-hidden="true">◒</span></div>
+      @if (project()) { <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="true" class="selected">Runtime</button><button role="tab" aria-selected="false" (click)="view.set('databases')">Databases</button><button role="tab" aria-selected="false" (click)="openWorkflowTerminal()">Terminal</button></div> }
       <div class="overview">
         <div class="stat"><span>PROJECTS</span><strong>{{ projects().length.toString().padStart(2, '0') }}</strong><small>in your workspace</small></div>
         <div class="stat"><span>SERVICES</span><strong>{{ serviceCount().toString().padStart(2, '0') }}</strong><small>ready to manage</small></div>
@@ -118,8 +118,9 @@
       <footer>Less juggling. More building.<span>RUNTIME BAY</span></footer>
     </div>
     }
-    <app-databases [projectId]="projectId() || ''" [projectName]="project()?.name || ''" [projectPath]="project()?.path || ''" [session]="sessionToken" [visible]="view() === 'databases'" (runtime)="view.set('runtime')"></app-databases>
-    <app-terminals [workspace]="terminals" [visible]="view() === 'terminal'" [suggestionsEnabled]="appearance.preferences().suggestionsEnabled"></app-terminals>
+    @if (view() === 'workflow-terminal' && project()) { <div class="workflow-page-tabs workflow-terminal-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="false" (click)="view.set('runtime')">Runtime</button><button role="tab" aria-selected="false" (click)="view.set('databases')">Databases</button><button role="tab" aria-selected="true" class="selected">Terminal</button></div> }
+    <app-databases [projectId]="projectId() || ''" [projectName]="project()?.name || ''" [projectPath]="project()?.path || ''" [session]="sessionToken" [visible]="view() === 'databases'" (runtime)="view.set('runtime')" (terminal)="openWorkflowTerminal()"></app-databases>
+    <app-terminals [workspace]="terminals" [visible]="view() === 'terminal' || view() === 'workflow-terminal'" [suggestionsEnabled]="appearance.preferences().suggestionsEnabled"></app-terminals>
   </main>
 </div>
 @if (sheet()) {

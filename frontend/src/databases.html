@@ -1,6 +1,6 @@
 <section class="database-page" [hidden]="!visible">
   <div class="page-title"><div><div class="eyebrow">YOUR DATA, WITHIN REACH</div><h1>{{ projectName || 'Databases' }}</h1><p class="subtitle">{{ projectPath }}</p></div><span class="title-symbol" aria-hidden="true">▦</span></div>
-  <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="false" (click)="runtime.emit()">Runtime</button><button role="tab" aria-selected="true" class="selected">Databases</button></div>
+  <div class="workflow-page-tabs" role="tablist" aria-label="Workflow views"><button role="tab" aria-selected="false" (click)="runtime.emit()">Runtime</button><button role="tab" aria-selected="true" class="selected">Databases</button><button role="tab" aria-selected="false" (click)="terminal.emit()">Terminal</button></div>
   @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="refresh()">Retry</button></div> }
   @if (status()?.state === 'ready') {
     <div class="database-toolbar"><span><i class="tiny-dot"></i> Table browser & SQL editor <small>CloudBeaver Community {{ status()!.version }}</small></span><button class="text-button" (click)="stop()" [disabled]="busy()" title="Close this companion; saved connections and scripts are kept">Close database workspace</button></div>

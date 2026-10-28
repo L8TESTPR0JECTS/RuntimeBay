@@ -23,9 +23,17 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
   selected = computed(() => this.overview()?.containers.find(c => c.id === this.selectedId()) || null);
   tab = signal<'containers' | 'images' | 'storage'>('containers');
   filter = signal('');
+  stateFilter = signal<'all' | 'running' | 'exited'>('all');
+  runningCount = computed(() => this.overview()?.containers.filter(container => container.state === 'running').length || 0);
+  exitedCount = computed(() => this.overview()?.containers.filter(container => this.isExited(container)).length || 0);
   visible = computed(() => {
     const query = this.filter().toLowerCase();
-    return this.overview()?.containers.filter(c => `${c.name} ${c.image} ${c.state} ${c.composeProject} ${this.projectName(c.workspaceProject)}`.toLowerCase().includes(query)) || [];
+    const state = this.stateFilter();
+    return this.overview()?.containers.filter(c => {
+      const matchesQuery = `${c.name} ${c.image} ${c.state} ${c.composeProject} ${this.projectName(c.workspaceProject)}`.toLowerCase().includes(query);
+      const matchesState = state === 'all' || (state === 'running' ? c.state === 'running' : this.isExited(c));
+      return matchesQuery && matchesState;
+    }) || [];
   });
   loading = signal(false);
   refreshingHosts = signal(false);
@@ -261,6 +269,9 @@ export class Containers implements OnInit, OnDestroy, OnChanges {
     finally { releaseLoading(); }
   }
   projectName(id: string) { return this.projects.find(p => p.id === id)?.name || ''; }
+  isExited(container: DockerContainer) { return ['exited', 'dead'].includes(container.state); }
+  toggleStateFilter(state: 'running' | 'exited') { this.stateFilter.update(current => current === state ? 'all' : state); }
+  resetContainerFilters() { this.filter.set(''); this.stateFilter.set('all'); }
   imageName(repository: string, tag: string) { return repository === '<none>' ? '' : repository + (tag === '<none>' ? '' : ':' + tag); }
   memory(bytes: number) { return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GiB'; }
   disabled(container: DockerContainer) { return this.pending().includes(container.id) || !this.overview(); }

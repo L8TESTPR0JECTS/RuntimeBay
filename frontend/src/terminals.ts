@@ -3,7 +3,7 @@ import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import { pathSuggestionLabel } from './terminal-assist';
 
-export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null; hostId: string; hostName: string; connected?: boolean }
+export interface ShellTab { id: string; name: string; directory: string; exitCode: number | null; hostId: string; hostName: string; connected?: boolean; workflowId?: string | null }
 interface Output { data: string; next: number; truncated: boolean; exitCode: number | null }
 
 /** Owns the tab collection; the backend owns shell lifetimes across view changes and reloads. */
@@ -36,6 +36,15 @@ export class TerminalWorkspace {
       const tab = await this.api<ShellTab>('', 'POST', { projectId, ...(hostId ? { hostId } : {}) });
       this.tabs.update(tabs => [...tabs, tab]); this.selected.set(tab.id); return true;
     } catch (error) { this.error.set((error as Error).message); return false; }
+    finally { this.creating.set(false); }
+  }
+  async createWorkflow(projectId: string): Promise<ShellTab | null> {
+    if (this.creating()) return null;
+    this.creating.set(true); this.error.set('');
+    try {
+      const tab = await this.api<ShellTab>('', 'POST', { projectId, workflowScoped: true });
+      this.tabs.update(tabs => [...tabs, tab]); this.selected.set(tab.id); return tab;
+    } catch (error) { this.error.set((error as Error).message); return null; }
     finally { this.creating.set(false); }
   }
   async rename(id: string,name: string) {

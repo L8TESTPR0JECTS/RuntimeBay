@@ -284,6 +284,23 @@ main {
   margin:0;
   overflow-wrap:anywhere
 }
+.workflow-path {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  max-width:min(100%, 900px);
+  padding:0;
+  overflow-wrap:anywhere;
+  text-align:left;
+  color:var(--muted);
+  background:transparent;
+  font-size:calc(11px * var(--font-scale, 1));
+  cursor:pointer
+}
+.workflow-path:hover { color:var(--accent) }
+.workflow-path:disabled { cursor:wait; opacity:.65 }
+.workflow-path span { flex:none; opacity:.75 }
+.workflow-terminal-tabs { margin:28px 34px -22px; position:relative; z-index:1 }
 .title-symbol {
   font-size:calc(48px * var(--font-scale, 1));
   color:var(--muted);

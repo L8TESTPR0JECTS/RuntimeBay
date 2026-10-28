@@ -298,6 +298,10 @@ final class ApiServer implements AutoCloseable {
             if (method.equals("GET")) { json(e, 200, terminals.list()); return; }
             if (method.equals("POST")) {
                 JsonObject value = body(e); String hostId = string(value, "hostId");
+                if (value.has("workflowScoped") && value.get("workflowScoped").getAsBoolean()) {
+                    if (hostId != null && !hostId.isBlank()) throw new ApiException(400,"Workflow terminals currently run on This Mac");
+                    json(e,201,terminals.createWorkflow(string(value,"projectId"))); return;
+                }
                 var host = machineHosts.get(hostId == null || hostId.isBlank() ? machineHosts.view().defaultHostId() : hostId);
                 hostPasswords.restore(host);
                 json(e, 201, host.local() ? terminals.create(string(value, "projectId")) : terminals.createRemote(host, hostSshControls)); return;

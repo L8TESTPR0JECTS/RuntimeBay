@@ -9,7 +9,7 @@ import java.util.concurrent.*;
 
 /** Saved terminal descriptors, with lazily opened app-owned PTYs. Commands and output are never persisted. */
 final class TerminalManager implements AutoCloseable {
-    record View(String id, String name, String directory, Integer exitCode, String hostId, String hostName, boolean connected) {}
+    record View(String id, String name, String directory, Integer exitCode, String hostId, String hostName, boolean connected, String workflowId) {}
     record Output(String data, long next, boolean truncated, Integer exitCode) {}
     record AssistState(String buffer, int cursor, String cwd, String command, boolean recognized, List<String> commands, List<String> paths, List<String> options) {}
     private final ProjectStore projects;
@@ -17,7 +17,7 @@ final class TerminalManager implements AutoCloseable {
     private final HostPasswords passwords;
     private final LinkedHashMap<String, Shell> shells = new LinkedHashMap<>();
     private final ExecutorService readers = Executors.newVirtualThreadPerTaskExecutor();
-    record SavedTab(String id,String name,String directory,String hostId,String hostName) {}
+    record SavedTab(String id,String name,String directory,String hostId,String hostName,String workflowId) {}
     private record Registry(int version,List<SavedTab> tabs) {}
     private final LinkedHashMap<String,SavedTab> saved = new LinkedHashMap<>();
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -36,10 +36,14 @@ final class TerminalManager implements AutoCloseable {
             number=saved.size();
         }catch(Exception error){throw new IllegalStateException("Cannot read saved terminal tabs. Existing data is preserved.",error);}
     }
-    synchronized List<View> list() { if(closed)return List.of();return saved.values().stream().map(tab -> shells.containsKey(tab.id()) ? shells.get(tab.id()).view() : new View(tab.id(),tab.name(),tab.directory(),null,tab.hostId(),tab.hostName(),false)).toList(); }
+    synchronized List<View> list() { if(closed)return List.of();return saved.values().stream().map(tab -> shells.containsKey(tab.id()) ? shells.get(tab.id()).view() : new View(tab.id(),tab.name(),tab.directory(),null,tab.hostId(),tab.hostName(),false,tab.workflowId())).toList(); }
     synchronized View create(String projectId) throws IOException {
         Path directory = projectId == null || projectId.isBlank() ? Path.of(System.getProperty("user.home")) : Path.of(projects.project(projectId).path());
-        return createSaved(directory,List.of(),"local","This Mac");
+        return createSaved(directory,List.of(),"local","This Mac",null);
+    }
+    synchronized View createWorkflow(String projectId) throws IOException {
+        var project=projects.project(projectId);
+        return createSaved(Path.of(project.path()),List.of(),"local","This Mac",project.id());
     }
     synchronized View createRemote(HostRegistry.Host host) throws IOException {
         return createRemote(host, null);
@@ -49,7 +53,10 @@ final class TerminalManager implements AutoCloseable {
         return createSaved(Path.of(System.getProperty("user.home")), HostRegistry.sshArguments(host, true, controls), host.id(), host.name());
     }
     private View createSaved(Path directory,List<String> command,String hostId,String hostName)throws IOException {
-        var tab=new SavedTab(UUID.randomUUID().toString(),(hostId.equals("local")?"":hostName+" · ")+"Terminal "+(++number),hostId.equals("local")?directory.toString():command.getLast(),hostId,hostName);
+        return createSaved(directory,command,hostId,hostName,null);
+    }
+    private View createSaved(Path directory,List<String> command,String hostId,String hostName,String workflowId)throws IOException {
+        var tab=new SavedTab(UUID.randomUUID().toString(),(hostId.equals("local")?"":hostName+" · ")+"Terminal "+(++number),hostId.equals("local")?directory.toString():command.getLast(),hostId,hostName,workflowId);
         var view=launch(tab,directory,command);saved.put(tab.id(),tab);
         try{persist();}catch(IOException error){saved.remove(tab.id());shells.remove(tab.id()).close();throw error;}return view;
     }
@@ -60,7 +67,7 @@ final class TerminalManager implements AutoCloseable {
         return launch(tab,host.local()?Path.of(tab.directory()):Path.of(System.getProperty("user.home")),host.local()?List.of():HostRegistry.sshArguments(host,true,controls));
     }
     synchronized View rename(String id,String name)throws IOException {
-        validateName(name);var old=definition(id);var tab=new SavedTab(id,name.trim(),old.directory(),old.hostId(),old.hostName());saved.put(id,tab);
+        validateName(name);var old=definition(id);var tab=new SavedTab(id,name.trim(),old.directory(),old.hostId(),old.hostName(),old.workflowId());saved.put(id,tab);
         try{persist();}catch(IOException error){saved.put(id,old);throw error;}
         var shell=shells.get(id);if(shell!=null)synchronized(shell){shell.name=tab.name();}
         return list().stream().filter(v->v.id().equals(id)).findFirst().orElseThrow();
@@ -84,7 +91,7 @@ final class TerminalManager implements AutoCloseable {
         Process process;
         try { process = builder.start(); }
         catch (IOException error) { deleteTree(assistDirectory); throw error; }
-        Shell shell = new Shell(tab.id(),tab.name(),tab.directory(),process,hostId,hostName,assistDirectory);
+        Shell shell = new Shell(tab.id(),tab.name(),tab.directory(),process,hostId,hostName,tab.workflowId(),assistDirectory);
         shells.put(shell.id, shell); readers.submit(shell::read);
         return shell.view();
     }
@@ -164,7 +171,7 @@ final class TerminalManager implements AutoCloseable {
         final String id, directory;
         String name;
         final Process process;
-        final String hostId, hostName;
+        final String hostId, hostName, workflowId;
         final Path assistDirectory;
         final Path assistFile;
         final DataOutputStream input;
@@ -172,10 +179,10 @@ final class TerminalManager implements AutoCloseable {
         long next;
         Integer exitCode;
         boolean closing;
-        Shell(String id, String name, String directory, Process process, String hostId, String hostName, Path assistDirectory) {
-            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; this.assistDirectory = assistDirectory; this.assistFile = assistDirectory == null ? null : assistDirectory.resolve("assist.json"); input = new DataOutputStream(process.getOutputStream());
+        Shell(String id, String name, String directory, Process process, String hostId, String hostName, String workflowId, Path assistDirectory) {
+            this.id = id; this.name = name; this.directory = directory; this.process = process; this.hostId = hostId; this.hostName = hostName; this.workflowId=workflowId; this.assistDirectory = assistDirectory; this.assistFile = assistDirectory == null ? null : assistDirectory.resolve("assist.json"); input = new DataOutputStream(process.getOutputStream());
         }
-        synchronized View view() { return new View(id, name, directory, exitCode, hostId, hostName,true); }
+        synchronized View view() { return new View(id, name, directory, exitCode, hostId, hostName,true,workflowId); }
         void read() {
             try (InputStream output = process.getInputStream()) {
                 byte[] bytes = new byte[16384]; int count;

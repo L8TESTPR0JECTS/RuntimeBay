@@ -51,6 +51,19 @@ class TerminalManagerTest {
         assertThrows(ApiException.class, () -> terminals.input(first.id(), "echo no\n"));
         terminals.input(second.id(), "printf '\\nSTILL_ALIVE:%s\\n' yes\n"); await(second.id(), "STILL_ALIVE:yes");
     }
+    @Test void workflowTerminalRemainsScopedToItsWorkflow() throws Exception {
+        var project=store.addProject("Workflow terminal fixture",temporary.toString());
+        var tab=terminals.createWorkflow(project.id());
+        assertEquals(project.id(),tab.workflowId());
+        assertEquals(project.path(),tab.directory());
+        assertEquals(1,terminals.list().size());
+        terminals.close();
+        Path launcher=Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER","../.build/runtimebay-launcher")).resolveSibling("runtimebay-terminal");
+        terminals=new TerminalManager(store,launcher);
+        var restored=terminals.list().getFirst();
+        assertEquals(project.id(),restored.workflowId());
+        assertEquals(project.path(),restored.directory());
+    }
     @Test void propagatesWindowSizeAndControlCWithoutKillingShell() throws Exception {
         var shell = terminals.create(null);
         terminals.resize(shell.id(), 113, 37);

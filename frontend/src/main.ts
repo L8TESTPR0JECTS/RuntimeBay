@@ -23,7 +23,7 @@ if (location.hash) history.replaceState(null, '', location.pathname);
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
-  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal' | 'databases'>('runtime');
+  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal' | 'workflow-terminal' | 'databases'>('runtime');
   readonly loader = inject(LoadingService);
   private loadingTasks = this.loader.scope();
   readonly appearance = new Appearance(session, this.loader);
@@ -169,6 +169,13 @@ class App implements OnDestroy {
   async newTerminal() {
     this.view.set('terminal');
     await this.terminals.create(this.projectId());
+  }
+  workflowTerminal() { return this.terminals.tabs().find(tab => tab.workflowId === this.projectId()) || null; }
+  sidebarTerminals() { return this.terminals.tabs().filter(tab => !tab.workflowId); }
+  async openWorkflowTerminal() {
+    const projectId=this.projectId(); if(!projectId)return;
+    const tab=this.workflowTerminal() || await this.terminals.createWorkflow(projectId);
+    if(tab){this.terminals.selected.set(tab.id);this.view.set('workflow-terminal');}
   }
   async openHostTerminal(hostId: string) { this.view.set('terminal'); await this.terminals.create(null, hostId); }
   selectTerminal(id: string) { this.terminals.selected.set(id); this.view.set('terminal'); }

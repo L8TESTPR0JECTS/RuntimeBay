@@ -12,6 +12,7 @@ export class Databases implements OnChanges, OnDestroy {
   @Input() session = '';
   @Input() visible = false;
   @Output() runtime = new EventEmitter<void>();
+  @Output() terminal = new EventEmitter<void>();
   private sanitizer = inject(DomSanitizer);
   private tasks = inject(LoadingService).scope();
   readonly status = signal<DatabaseStatus | null>(null);
