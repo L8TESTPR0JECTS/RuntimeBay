@@ -4,6 +4,7 @@
     <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
     <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
     <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
+    <button class="containers-nav" [class.selected]="view() === 'tunnels'" (click)="view.set('tunnels')"><span aria-hidden="true">⇄</span> Tunnels <span>›</span></button>
     <div class="sidebar-label">WORKFLOWS <span>{{ projects().length }}</span></div>
     <div class="workspace-items">
     <nav aria-label="Projects">
@@ -29,11 +30,13 @@
     <div class="sidebar-bottom"><button class="customize-button" (click)="appearance.show()">◒ Customize appearance <span>⌘ ,</span></button><div class="engine-state"><i [class.online]="connected()"></i>{{ connected() ? 'Local engine connected' : loading() ? 'Connecting…' : 'Engine disconnected' }}</div><small>MACOS · V0.5.0</small></div>
   </aside>
   <main>
-    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' || view() === 'databases' || view() === 'workflow-terminal' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> {{ view() === 'hosts' ? 'YOUR MACHINES' : view() === 'terminal' ? (terminals.selectedTab()?.hostName || 'This Mac') : 'ON YOUR MAC' }}</span></header>
+    <header class="topbar"><div><span class="crumb">{{ view() === 'runtime' || view() === 'databases' || view() === 'workflow-terminal' ? 'Workflow' : 'Workspace' }}</span><span class="slash">/</span><strong>{{ view() === 'containers' ? 'Containers' : view() === 'hosts' ? 'Hosts' : view() === 'tunnels' ? 'Tunnels' : view() === 'terminal' ? 'Terminals' : project()?.name || 'Overview' }}</strong></div><span class="local-pill"><i></i> {{ view() === 'hosts' ? 'YOUR MACHINES' : view() === 'tunnels' ? 'SSH CONNECTIONS' : view() === 'terminal' ? (terminals.selectedTab()?.hostName || 'This Mac') : 'ON YOUR MAC' }}</span></header>
     @if (view() === 'hosts') {
       <app-hosts [session]="sessionToken" [terminalBusy]="terminals.creating()" (openTerminal)="openHostTerminal($event)"></app-hosts>
     } @else if (view() === 'containers') {
       <app-containers [session]="sessionToken" [projects]="projects()"></app-containers>
+    } @else if (view() === 'tunnels') {
+      <app-tunnels [session]="sessionToken" (navigateHosts)="view.set('hosts')"></app-tunnels>
     } @else if (view() === 'runtime') {
     <div class="content">
       @if (!connected() && !loading()) {

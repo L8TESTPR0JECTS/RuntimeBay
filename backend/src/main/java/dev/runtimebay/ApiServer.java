@@ -27,6 +27,7 @@ final class ApiServer implements AutoCloseable {
     private final MachineHosts machineHosts;
     private final Path hostSshControls;
     private final HostPasswords hostPasswords;
+    private final SshTunnels tunnels;
     private final Path webRoot;
     private final String token;
     private final Gson gson = new GsonBuilder().serializeNulls().create();
@@ -46,6 +47,7 @@ final class ApiServer implements AutoCloseable {
         Path supervisor = Path.of(System.getenv().getOrDefault("RUNTIMEBAY_LAUNCHER", "../.build/runtimebay-launcher"));
         hostPasswords = new HostPasswords(hostSshControls, supervisor.resolveSibling("runtimebay-askpass"));
         machineHosts = new MachineHosts(new HostRegistry(store.directory()), new HostTools(hostSshControls, hostPasswords));
+        tunnels = new SshTunnels(store.directory(), machineHosts, hostPasswords, hostSshControls);
         plans = new WorkflowPlans(store, runtimes, manifests, machineHosts::view);
         docker.configureHosts(machineHosts::view,hostPasswords,hostSshControls);
         terminals = new TerminalManager(store, supervisor.resolveSibling("runtimebay-terminal"), hostPasswords);
@@ -84,6 +86,7 @@ final class ApiServer implements AutoCloseable {
         String method = e.getRequestMethod();
         String[] parts = path.substring(1).split("/");
         if (path.equals("/api/terminals") || path.startsWith("/api/terminals/")) { routeTerminals(e, parts); return; }
+        if (path.equals("/api/tunnels") || path.startsWith("/api/tunnels/")) { routeTunnels(e, parts); return; }
         if (path.equals("/api/hosts") || path.startsWith("/api/hosts/")) { routeHosts(e, parts); return; }
         if (path.startsWith("/api/docker/")) { routeDocker(e, parts); return; }
         if (parts.length >= 4 && parts[1].equals("workflows") && parts[3].equals("manifest")) { routeManifest(e, parts); return; }
@@ -275,14 +278,14 @@ final class ApiServer implements AutoCloseable {
             String password = string(value, "password"); HostPasswords.validate(password);
             String id = parts.length == 2 ? null : parts[2];
             var previous = id == null ? null : machineHosts.get(id);
-            if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) { runtimes.workflows().requireUnusedMachine(id); attachments.protectHost(id); }
+            if (previous != null && (!previous.address().equals(string(value, "address")) || !previous.user().equals(Objects.requireNonNullElse(string(value, "user"), "")) || !Objects.equals(previous.port(), port))) { runtimes.workflows().requireUnusedMachine(id); attachments.protectHost(id); tunnels.requireUnusedHost(id); }
             var saved = machineHosts.save(id, string(value, "name"), string(value, "address"), Objects.requireNonNullElse(string(value, "user"), ""), port);
             if (previous != null && (!previous.address().equals(saved.address()) || !previous.user().equals(saved.user()) || !Objects.equals(previous.port(), saved.port()))) hostPasswords.forget(previous);
             if (value.has("clearPassword") && value.get("clearPassword").getAsBoolean()) hostPasswords.forget(saved);
             hostPasswords.update(saved, password, value.has("rememberPassword") && value.get("rememberPassword").getAsBoolean(), false);
             json(e, parts.length == 2 ? 201 : 200, saved); return;
         }
-        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); attachments.protectHost(parts[2]); hostPasswords.forget(machineHosts.get(parts[2])); machineHosts.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 3 && method.equals("DELETE")) { runtimes.workflows().requireUnusedMachine(parts[2]); attachments.protectHost(parts[2]); tunnels.requireUnusedHost(parts[2]); hostPasswords.forget(machineHosts.get(parts[2])); machineHosts.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4) {
             String id = parts[2];
             if (parts[3].equals("authentication") && method.equals("GET")) { json(e, 200, hostPasswords.authentication(machineHosts.get(id))); return; }
@@ -333,6 +336,22 @@ final class ApiServer implements AutoCloseable {
             }
         }
         throw new ApiException(404, "Terminal endpoint not found");
+    }
+    private void routeTunnels(HttpExchange e, String[] parts) throws IOException {
+        String method = e.getRequestMethod();
+        if (parts.length == 2 && method.equals("GET")) { json(e, 200, tunnels.list()); return; }
+        if (parts.length == 2 && method.equals("POST")) {
+            JsonObject value = body(e);
+            json(e, 201, tunnels.save(null, string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"))); return;
+        }
+        if (parts.length == 3 && method.equals("PUT")) {
+            JsonObject value = body(e);
+            json(e, 200, tunnels.save(parts[2], string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"))); return;
+        }
+        if (parts.length == 3 && method.equals("DELETE")) { tunnels.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
+        if (parts.length == 4 && parts[3].equals("start") && method.equals("POST")) { body(e); json(e, 200, tunnels.start(parts[2])); return; }
+        if (parts.length == 4 && parts[3].equals("stop") && method.equals("POST")) { body(e); json(e, 200, tunnels.stop(parts[2])); return; }
+        throw new ApiException(404, "Tunnel endpoint not found");
     }
     private void routeDocker(HttpExchange e, String[] parts) throws IOException {
         String method = e.getRequestMethod();
@@ -430,6 +449,11 @@ final class ApiServer implements AutoCloseable {
             throw new ApiException(400, key + " must be text");
         return body.get(key).getAsString();
     }
+    private int integer(JsonObject body, String key) {
+        if (!body.has(key) || !body.get(key).isJsonPrimitive() || !body.getAsJsonPrimitive(key).isNumber() || !body.get(key).getAsString().matches("[0-9]{1,5}"))
+            throw new ApiException(400, key + " must be a whole number between 1 and 65535");
+        return body.get(key).getAsInt();
+    }
     private void assets(HttpExchange e, String path) throws IOException {
         if (!e.getRequestMethod().equals("GET")) throw new ApiException(405, "Method not allowed");
         Path file = webRoot.resolve(path.equals("/") ? "index.html" : path.substring(1)).normalize();
@@ -454,7 +478,7 @@ final class ApiServer implements AutoCloseable {
         e.getResponseBody().write(bytes);
     }
     @Override public void close() {
-        server.stop(0); plans.close(); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
+        server.stop(0); plans.close(); tunnels.close(); machineHosts.close(); databases.close(); terminals.close(); requests.shutdownNow();
         hostPasswords.close();
         try (DirectoryStream<Path> sockets = Files.newDirectoryStream(hostSshControls)) { for (Path socket : sockets) Files.deleteIfExists(socket); }
         catch (IOException e) { System.err.println("Could not clean SSH control sockets"); }

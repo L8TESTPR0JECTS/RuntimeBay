@@ -11,6 +11,7 @@ import { WorkflowContainers } from './workflow-containers';
 import { Databases } from './databases';
 import { Containers } from './containers';
 import { Hosts } from './hosts';
+import { Tunnels } from './tunnels';
 import { Appearance } from './appearance';
 import { LoadingService } from './loading/loading.service';
 import { adjacentTerminal, workspaceShortcut, WorkspaceCommand } from './shortcuts';
@@ -19,11 +20,11 @@ const session = window.runtimeBaySession || new URLSearchParams(location.hash.sl
 if (location.hash) history.replaceState(null, '', location.pathname);
 
 @Component({
-  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Terminals, WorkflowContainers, Databases, Environments, Attachments, WorkflowYaml],
+  selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Tunnels, Terminals, WorkflowContainers, Databases, Environments, Attachments, WorkflowYaml],
   templateUrl: './app.html'
 })
 class App implements OnDestroy {
-  view = signal<'runtime' | 'containers' | 'hosts' | 'terminal' | 'workflow-terminal' | 'databases'>('runtime');
+  view = signal<'runtime' | 'containers' | 'hosts' | 'tunnels' | 'terminal' | 'workflow-terminal' | 'databases'>('runtime');
   readonly loader = inject(LoadingService);
   private loadingTasks = this.loader.scope();
   readonly appearance = new Appearance(session, this.loader);

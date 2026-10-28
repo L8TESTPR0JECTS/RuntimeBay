@@ -1,0 +1,170 @@
+package dev.runtimebay;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.*;
+import java.util.concurrent.*;
+
+/** Saved SSH local-forward profiles. Credentials remain in the host credential store. */
+final class SshTunnels implements AutoCloseable {
+    record Definition(String id, String name, String hostId, int localPort, String remoteHost, int remotePort) {}
+    record View(Definition definition, String hostName, String state, String error) {}
+    private record Saved(int version, List<Definition> tunnels) {}
+    private static final class Live {
+        final Process process;
+        volatile String error;
+        Live(Process process) { this.process = process; }
+    }
+
+    private final Path file, controls;
+    private final MachineHosts hosts;
+    private final HostPasswords passwords;
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final Map<String, Definition> definitions = new LinkedHashMap<>();
+    private final Map<String, Live> live = new HashMap<>();
+    private final Map<String, String> errors = new HashMap<>();
+    private final ExecutorService readers = Executors.newVirtualThreadPerTaskExecutor();
+    private boolean closed;
+
+    SshTunnels(Path directory, MachineHosts hosts, HostPasswords passwords, Path controls) throws IOException {
+        this.file = directory.resolve("tunnels.json"); this.hosts = hosts; this.passwords = passwords; this.controls = controls;
+        load();
+    }
+
+    synchronized List<View> list() {
+        return definitions.values().stream().map(this::view).toList();
+    }
+
+    synchronized View save(String id, String name, String hostId, int localPort, String remoteHost, int remotePort) throws IOException {
+        validate(name, hostId, localPort, remoteHost, remotePort);
+        hosts.get(hostId);
+        if ("local".equals(hostId)) throw new ApiException(400, "Choose a saved SSH host for this tunnel");
+        if (id != null && !definitions.containsKey(id)) throw new ApiException(404, "Tunnel not found");
+        for (Definition saved : definitions.values()) if (!saved.id().equals(id) && saved.localPort() == localPort)
+            throw new ApiException(409, "Another saved tunnel already uses this local port");
+        Definition value = new Definition(id == null ? UUID.randomUUID().toString() : id, name.trim(), hostId, localPort, remoteHost.trim(), remotePort);
+        Definition previous = definitions.get(id);
+        if (previous != null && isRunning(id) && !previous.equals(value)) throw new ApiException(409, "Stop this tunnel before changing its connection details");
+        definitions.put(value.id(), value);
+        try { persist(); } catch (IOException e) { if (previous == null) definitions.remove(value.id()); else definitions.put(id, previous); throw e; }
+        errors.remove(value.id());
+        return view(value);
+    }
+
+    synchronized void requireUnusedHost(String hostId) {
+        if (definitions.values().stream().anyMatch(item -> item.hostId().equals(hostId)))
+            throw new ApiException(409, "Remove or reassign saved tunnels before changing or removing this host");
+    }
+
+    synchronized void remove(String id) throws IOException {
+        Definition old = require(id);
+        stopProcess(id);
+        definitions.remove(id);
+        errors.remove(id);
+        try { persist(); } catch (IOException e) { definitions.put(id, old); throw e; }
+    }
+
+    synchronized View start(String id) {
+        Definition definition = require(id);
+        if (closed) throw new ApiException(503, "Tunnels are shutting down");
+        Live existing = live.get(id);
+        if (existing != null && existing.process.isAlive()) return view(definition);
+        if (existing != null) live.remove(id);
+        errors.remove(id);
+        HostRegistry.Host host = hosts.get(definition.hostId());
+        passwords.restore(host);
+        List<String> command = new ArrayList<>(HostRegistry.sshArguments(host, false, controls));
+        int destination = command.indexOf("--");
+        command.addAll(destination, List.of("-N", "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes", "-L", "127.0.0.1:" + definition.localPort() + ":" + definition.remoteHost() + ":" + definition.remotePort()));
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().keySet().removeIf(key -> key.startsWith("RUNTIMEBAY_"));
+        builder.environment().put("PATH", "/opt/homebrew/bin:/usr/local/bin:" + builder.environment().getOrDefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"));
+        passwords.configure(builder, host.id());
+        try {
+            Process process = builder.start();
+            Live running = new Live(process); live.put(id, running);
+            readers.submit(() -> monitor(id, running));
+            return view(definition);
+        } catch (IOException e) {
+            throw new ApiException(502, "Could not start the SSH tunnel: " + safeMessage(e.getMessage()));
+        }
+    }
+
+    synchronized View stop(String id) {
+        Definition definition = require(id);
+        stopProcess(id);
+        return view(definition);
+    }
+
+    private void monitor(String id, Live process) {
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.process.getErrorStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) synchronized (process) {
+                if (output.length() < 2048) output.append(line).append('\n');
+            }
+            int exit = process.process.waitFor();
+            synchronized (this) {
+                if (live.get(id) == process) {
+                    if (exit != 0) { process.error = safeMessage(output.toString().strip()); errors.put(id, process.error); }
+                    live.remove(id);
+                }
+            }
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        catch (IOException ignored) { /* Process shutdown closes its error stream. */ }
+    }
+
+    private synchronized View view(Definition definition) {
+        Live process = live.get(definition.id());
+        String state = process == null ? errors.containsKey(definition.id()) ? "error" : "stopped" : process.process.isAlive() ? "running" : "error";
+        return new View(definition, hosts.get(definition.hostId()).name(), state, process == null ? errors.get(definition.id()) : process.error);
+    }
+    private boolean isRunning(String id) { Live value = live.get(id); return value != null && value.process.isAlive(); }
+    private Definition require(String id) { Definition value = definitions.get(id); if (value == null) throw new ApiException(404, "Tunnel not found"); return value; }
+    private void stopProcess(String id) {
+        Live value = live.remove(id); if (value == null) return;
+        errors.remove(id);
+        value.process.descendants().forEach(ProcessHandle::destroy);
+        value.process.destroy();
+        try { if (!value.process.waitFor(1200, TimeUnit.MILLISECONDS)) value.process.destroyForcibly(); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); value.process.destroyForcibly(); }
+    }
+    private void load() throws IOException {
+        if (!Files.exists(file)) return;
+        try {
+            Saved saved = gson.fromJson(Files.readString(file), Saved.class);
+            if (saved == null || saved.version() != 1 || saved.tunnels() == null || saved.tunnels().size() > 100) throw new IllegalArgumentException();
+            for (Definition item : saved.tunnels()) {
+                if (item == null || item.id() == null || !item.id().equals(UUID.fromString(item.id()).toString()) || definitions.containsKey(item.id())) throw new IllegalArgumentException();
+                validate(item.name(), item.hostId(), item.localPort(), item.remoteHost(), item.remotePort());
+                hosts.get(item.hostId());
+                if (item.hostId().equals("local")) throw new IllegalArgumentException();
+                definitions.put(item.id(), item);
+            }
+        } catch (RuntimeException e) { throw new IOException("Cannot read saved tunnels. Existing data has been preserved.", e); }
+    }
+    private void persist() throws IOException {
+        Path temporary = Files.createTempFile(file.getParent(), "tunnels-", ".tmp");
+        try {
+            Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("rw-------"));
+            Files.writeString(temporary, gson.toJson(new Saved(1, List.copyOf(definitions.values()))));
+            Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally { Files.deleteIfExists(temporary); }
+    }
+    static void validate(String name, String hostId, int localPort, String remoteHost, int remotePort) {
+        if (name == null || name.isBlank() || name.length() > 100 || name.chars().anyMatch(Character::isISOControl)) throw new ApiException(400, "Enter a tunnel name of up to 100 characters");
+        if (hostId == null || !hostId.matches("[A-Za-z0-9-]{1,64}")) throw new ApiException(400, "Choose a saved SSH host");
+        if (localPort < 1 || localPort > 65535 || remotePort < 1 || remotePort > 65535) throw new ApiException(400, "Ports must be whole numbers between 1 and 65535");
+        if (remoteHost == null || !remoteHost.trim().matches("[A-Za-z0-9:][A-Za-z0-9_.:%-]{0,254}")) throw new ApiException(400, "Enter a valid destination hostname or IP address");
+    }
+    private static String safeMessage(String message) {
+        if (message == null || message.isBlank()) return "SSH exited before the tunnel became available. Check host access and local port availability.";
+        String clean = message.replaceAll("(?i)(password|passphrase)\\s*[:=].*", "$1: [hidden]").strip();
+        return clean.length() > 1200 ? clean.substring(clean.length() - 1200) : clean;
+    }
+    @Override public synchronized void close() { closed = true; for (String id : new ArrayList<>(live.keySet())) stopProcess(id); readers.shutdownNow(); }
+}

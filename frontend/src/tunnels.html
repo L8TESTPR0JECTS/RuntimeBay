@@ -1,0 +1,36 @@
+<div class="content tunnel-page">
+  @if (error()) { <div class="notice" role="alert">{{ error() }}<button (click)="error.set('')" aria-label="Dismiss error">×</button></div> }
+  <div class="page-title"><div><div class="eyebrow">PRIVATE CONNECTIONS, READY WHEN YOU ARE</div><h1>Tunnels.</h1><p class="subtitle">Save SSH port forwards and bring them back with one click.</p></div><span class="title-symbol" aria-hidden="true">⇄</span></div>
+  <div class="section-heading tunnel-heading"><div><h2>Saved tunnels <span class="count">{{ tunnels().length }}</span></h2><p>Definitions stay on this Mac. Active connections close when Runtime Bay quits.</p></div><button class="primary" (click)="open()" [disabled]="!hosts().length">＋ New tunnel</button></div>
+  @if (!hosts().length && !loading()) {
+    <section class="tunnel-empty"><span aria-hidden="true">⌁</span><h2>Add an SSH host first.</h2><p>Tunnels use a saved machine from Hosts and its existing SSH keys, agent, and verified host key.</p><button class="secondary" (click)="navigateHosts.emit()">Open Hosts ↗</button></section>
+  } @else if (loading()) { <div class="empty-state" role="status"><h2>Loading saved tunnels…</h2></div> }
+  @else if (!tunnels().length) {
+    <section class="tunnel-empty"><span aria-hidden="true">⇄</span><h2>Your first tunnel is one click away.</h2><p>Forward a local port to a service reachable from one of your SSH hosts. For example, open a database on Helfer at <code>localhost:3306</code>.</p><button class="primary" (click)="open()">＋ Set up a tunnel</button></section>
+  } @else {
+    <div class="tunnel-list">
+      @for (tunnel of tunnels(); track tunnel.definition.id) {
+        <article class="tunnel-card" [class.tunnel-running]="tunnel.state === 'running'">
+          <div class="tunnel-card-heading"><div><h3>{{ tunnel.definition.name }}</h3><span class="tunnel-status" [class.running]="tunnel.state === 'running'" [class.error]="tunnel.state === 'error'"><i></i>{{ tunnel.state }}</span></div><span class="host-kind remote">SSH · {{ tunnel.hostName }}</span></div>
+          <div class="tunnel-route"><div><small>LOCAL</small><code>127.0.0.1:{{ tunnel.definition.localPort }}</code></div><span aria-hidden="true">→</span><div><small>DESTINATION FROM {{ tunnel.hostName.toUpperCase() }}</small><code>{{ tunnel.definition.remoteHost }}:{{ tunnel.definition.remotePort }}</code></div></div>
+          @if (tunnel.error) { <p class="tunnel-error" role="alert">{{ tunnel.error }}</p> }
+          <div class="tunnel-actions"><button class="secondary" (click)="open(tunnel)" [disabled]="tunnel.state === 'running' || busy(tunnel)">Edit</button><button class="secondary" (click)="remove(tunnel)" [disabled]="busy(tunnel)">Remove</button>@if (tunnel.state === 'running') { <button class="stop-button" (click)="action(tunnel, 'stop')" [disabled]="busy(tunnel)">{{ busy(tunnel) ? 'Stopping…' : '■ Stop tunnel' }}</button> } @else { <button class="start-button" (click)="action(tunnel, 'start')" [disabled]="busy(tunnel)">{{ busy(tunnel) ? 'Connecting…' : '▷ Start tunnel' }}</button> }</div>
+        </article>
+      }
+    </div>
+  }
+</div>
+
+@if (modal()) {
+  <div class="modal-backdrop" (click)="close()"><section class="modal tunnel-modal" role="dialog" aria-modal="true" aria-labelledby="tunnel-dialog-title" (click)="$event.stopPropagation()">
+    <div class="eyebrow">SSH PORT FORWARD</div><button class="modal-close" (click)="close()" aria-label="Close">×</button><h2 id="tunnel-dialog-title">{{ editing() ? 'Edit tunnel.' : 'New tunnel.' }}</h2><p>Save a local route through a machine you already use.</p>
+    <form (ngSubmit)="save()">
+      <label>TUNNEL NAME<input name="name" [(ngModel)]="form.name" placeholder="Gobble database" required maxlength="100"></label>
+      <label>SSH HOST<select name="hostId" [(ngModel)]="form.hostId" required>@for (host of hosts(); track host.id) { <option [value]="host.id">{{ host.name }}</option> }</select><small>Uses the host’s saved SSH configuration and credentials.</small></label>
+      <div class="form-row"><label>LOCAL PORT<input name="localPort" type="number" min="1" max="65535" [(ngModel)]="form.localPort" required><small>Available on this Mac only.</small></label><label>DESTINATION PORT<input name="remotePort" type="number" min="1" max="65535" [(ngModel)]="form.remotePort" required></label></div>
+      <label>DESTINATION HOST<input name="remoteHost" [(ngModel)]="form.remoteHost" placeholder="localhost" required maxlength="255"><small>This address is reached from the selected SSH host.</small></label>
+      @if (formError()) { <p class="form-error" role="alert">{{ formError() }}</p> }
+      <div class="modal-footer"><small>The tunnel definition is saved for quick access after reopening Runtime Bay.</small><button class="primary" type="submit" [disabled]="saving() || !form.hostId">{{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Save tunnel' }}</button></div>
+    </form>
+  </section></div>
+}
