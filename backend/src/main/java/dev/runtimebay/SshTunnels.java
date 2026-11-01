@@ -12,8 +12,8 @@ import java.util.concurrent.*;
 /** Saved SSH local-forward profiles. Credentials remain in the host credential store. */
 final class SshTunnels implements AutoCloseable {
     record Definition(String id, String name, String hostId, int localPort, String remoteHost, int remotePort, String sshAlias) {}
-    record View(Definition definition, String hostName, String state, String error) {}
-    private record Saved(int version, List<Definition> tunnels) {}
+    record View(Definition definition, String hostName, String state, String error, boolean unreadError) {}
+    private record Saved(int version, List<Definition> tunnels, Map<String, String> errors, Set<String> unreadErrors) {}
     private static final class Live {
         final Process process;
         volatile String error;
@@ -27,6 +27,7 @@ final class SshTunnels implements AutoCloseable {
     private final Map<String, Definition> definitions = new LinkedHashMap<>();
     private final Map<String, Live> live = new HashMap<>();
     private final Map<String, String> errors = new HashMap<>();
+    private final Set<String> unreadErrors = new LinkedHashSet<>();
     private final ExecutorService readers = Executors.newVirtualThreadPerTaskExecutor();
     private boolean closed;
 
@@ -49,9 +50,16 @@ final class SshTunnels implements AutoCloseable {
         Definition value = new Definition(id == null ? UUID.randomUUID().toString() : id, name.trim(), hostId, localPort, remoteHost.trim(), remotePort, cleanAlias(sshAlias));
         Definition previous = definitions.get(id);
         if (previous != null && isRunning(id) && !previous.equals(value)) throw new ApiException(409, "Stop this tunnel before changing its connection details");
+        String previousError = previous == null ? null : errors.get(value.id());
+        boolean wasUnread = unreadErrors.contains(value.id());
         definitions.put(value.id(), value);
-        try { persist(); } catch (IOException e) { if (previous == null) definitions.remove(value.id()); else definitions.put(id, previous); throw e; }
-        errors.remove(value.id());
+        errors.remove(value.id()); unreadErrors.remove(value.id());
+        try { persist(); } catch (IOException e) {
+            if (previous == null) definitions.remove(value.id()); else definitions.put(value.id(), previous);
+            if (previousError != null) errors.put(value.id(), previousError);
+            if (wasUnread) unreadErrors.add(value.id());
+            throw e;
+        }
         return view(value);
     }
 
@@ -62,10 +70,24 @@ final class SshTunnels implements AutoCloseable {
 
     synchronized void remove(String id) throws IOException {
         Definition old = require(id);
+        String oldError = errors.get(id);
+        boolean wasUnread = unreadErrors.contains(id);
         stopProcess(id);
         definitions.remove(id);
-        errors.remove(id);
-        try { persist(); } catch (IOException e) { definitions.put(id, old); throw e; }
+        errors.remove(id); unreadErrors.remove(id);
+        try { persist(); } catch (IOException e) {
+            definitions.put(id, old);
+            if (oldError != null) errors.put(id, oldError);
+            if (wasUnread) unreadErrors.add(id);
+            throw e;
+        }
+    }
+
+    synchronized void acknowledgeErrors() throws IOException {
+        if (unreadErrors.isEmpty()) return;
+        Set<String> previous = Set.copyOf(unreadErrors);
+        unreadErrors.clear();
+        try { persist(); } catch (IOException e) { unreadErrors.addAll(previous); throw e; }
     }
 
     synchronized View start(String id) {
@@ -74,7 +96,12 @@ final class SshTunnels implements AutoCloseable {
         Live existing = live.get(id);
         if (existing != null && existing.process.isAlive()) return view(definition);
         if (existing != null) live.remove(id);
-        errors.remove(id);
+        String previousError = errors.remove(id);
+        boolean wasUnread = unreadErrors.remove(id);
+        try { persist(); } catch (IOException e) {
+            if (previousError != null) errors.put(id, previousError);
+            if (wasUnread) unreadErrors.add(id);
+        }
         HostRegistry.Host host = hosts.get(definition.hostId());
         passwords.restore(host);
         List<String> command = new ArrayList<>(HostRegistry.sshArguments(host, false, controls, definition.sshAlias()));
@@ -90,6 +117,7 @@ final class SshTunnels implements AutoCloseable {
             readers.submit(() -> monitor(id, running));
             return view(definition);
         } catch (IOException e) {
+            recordFailure(id, safeMessage(e.getMessage()));
             throw new ApiException(502, "Could not start the SSH tunnel: " + safeMessage(e.getMessage()));
         }
     }
@@ -110,7 +138,7 @@ final class SshTunnels implements AutoCloseable {
             int exit = process.process.waitFor();
             synchronized (this) {
                 if (live.get(id) == process) {
-                    if (exit != 0) { process.error = safeMessage(output.toString().strip()); errors.put(id, process.error); }
+                    if (exit != 0) recordFailure(id, safeMessage(output.toString().strip()));
                     live.remove(id);
                 }
             }
@@ -121,7 +149,11 @@ final class SshTunnels implements AutoCloseable {
     private synchronized View view(Definition definition) {
         Live process = live.get(definition.id());
         String state = process == null ? errors.containsKey(definition.id()) ? "error" : "stopped" : process.process.isAlive() ? "running" : "error";
-        return new View(definition, hosts.get(definition.hostId()).name(), state, process == null ? errors.get(definition.id()) : process.error);
+        return new View(definition, hosts.get(definition.hostId()).name(), state, process == null ? errors.get(definition.id()) : process.error, unreadErrors.contains(definition.id()));
+    }
+    synchronized void recordFailure(String id, String message) {
+        errors.put(id, message); unreadErrors.add(id);
+        try { persist(); } catch (IOException ignored) { /* Keep the failure visible for this app session. */ }
     }
     private boolean isRunning(String id) { Live value = live.get(id); return value != null && value.process.isAlive(); }
     private Definition require(String id) { Definition value = definitions.get(id); if (value == null) throw new ApiException(404, "Tunnel not found"); return value; }
@@ -145,13 +177,21 @@ final class SshTunnels implements AutoCloseable {
                 if (item.hostId().equals("local")) throw new IllegalArgumentException();
                 definitions.put(item.id(), item);
             }
+            if (saved.errors() != null) for (var entry : saved.errors().entrySet()) {
+                if (!definitions.containsKey(entry.getKey()) || entry.getValue() == null || entry.getValue().isBlank() || entry.getValue().length() > 1200) throw new IllegalArgumentException();
+                errors.put(entry.getKey(), entry.getValue());
+            }
+            if (saved.unreadErrors() != null) {
+                if (!definitions.keySet().containsAll(saved.unreadErrors()) || !errors.keySet().containsAll(saved.unreadErrors())) throw new IllegalArgumentException();
+                unreadErrors.addAll(saved.unreadErrors());
+            }
         } catch (RuntimeException e) { throw new IOException("Cannot read saved tunnels. Existing data has been preserved.", e); }
     }
     private void persist() throws IOException {
         Path temporary = Files.createTempFile(file.getParent(), "tunnels-", ".tmp");
         try {
             Files.setPosixFilePermissions(temporary, PosixFilePermissions.fromString("rw-------"));
-            Files.writeString(temporary, gson.toJson(new Saved(1, List.copyOf(definitions.values()))));
+            Files.writeString(temporary, gson.toJson(new Saved(1, List.copyOf(definitions.values()), Map.copyOf(errors), Set.copyOf(unreadErrors))));
             Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } finally { Files.deleteIfExists(temporary); }
     }

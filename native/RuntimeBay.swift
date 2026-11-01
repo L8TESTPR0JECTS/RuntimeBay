@@ -1,6 +1,7 @@
 import AppKit
 import WebKit
 import Security
+import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler, NSMenuItemValidation {
     private var workspaceWindows: [ObjectIdentifier: (window: NSWindow, webView: WKWebView)] = [:]
@@ -265,6 +266,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             }
             return
         }
+        if let value = message.body as? [String: String], value["action"] == "tunnelFailure" {
+            let title = String((value["title"] ?? "Tunnel failed").prefix(100))
+            let body = String((value["body"] ?? "An SSH tunnel exited unexpectedly.").prefix(500))
+            let identifier = value["id"] ?? UUID().uuidString
+            notifyTunnelFailure(identifier: identifier, title: title, body: body)
+            return
+        }
         guard let action = message.body as? String, action == "chooseFolder" else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -309,6 +317,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) }
         }
         return .terminateLater
+    }
+    private func notifyTunnelFailure(identifier: String, title: String, body: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Tunnel disconnected · \(title)"
+            content.body = body
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: "runtimebay-tunnel-\(identifier)-\(UUID().uuidString)", content: content, trigger: nil)
+            center.add(request)
+        }
     }
 }
 @main

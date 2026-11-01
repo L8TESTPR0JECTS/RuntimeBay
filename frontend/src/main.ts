@@ -19,6 +19,8 @@ import { adjacentTerminal, workspaceShortcut, WorkspaceCommand } from './shortcu
 const session = window.runtimeBaySession || new URLSearchParams(location.hash.slice(1)).get('session') || '';
 if (location.hash) history.replaceState(null, '', location.pathname);
 
+interface TunnelStatus { definition: { id: string; name: string }; state: 'running' | 'stopped' | 'error'; error: string | null; unreadError: boolean }
+
 @Component({
   selector: 'app-root', standalone: true, imports: [FormsModule, DatePipe, Containers, Hosts, Tunnels, Terminals, WorkflowContainers, Databases, Environments, Attachments, WorkflowYaml],
   templateUrl: './app.html'
@@ -57,6 +59,8 @@ class App implements OnDestroy {
   canStartAll = computed(() => !!this.workflow() && (this.project()?.services.filter(s => !this.active(s)).every(s => this.canStart(s)) ?? false));
   service = computed(() => this.project()?.services.find(s => s.id === this.serviceId()) || null);
   running = computed(() => this.projects().flatMap(p => p.services).filter(s => this.active(s)).length);
+  activeTunnelCount = signal(0);
+  unreadTunnelErrorCount = signal(0);
   serviceCount = computed(() => this.projects().reduce((sum, p) => sum + p.services.length, 0));
   visibleLogs = computed(() => {
     const query = this.logFilter().toLowerCase();
@@ -70,6 +74,9 @@ class App implements OnDestroy {
   private refreshPromise?: Promise<void>;
   private destroyed = false;
   private timer: ReturnType<typeof setInterval>;
+  private tunnelTimer: ReturnType<typeof setInterval>;
+  private tunnelStatusReady = false;
+  private knownUnreadTunnelErrors = new Set<string>();
   private controller = new AbortController();
   private returnFocus: HTMLElement | null = null;
   @ViewChild('logBody') logBody?: ElementRef<HTMLElement>;
@@ -115,12 +122,51 @@ class App implements OnDestroy {
     window.addEventListener('runtimebay:command', this.commandListener);
     void this.loadingTasks.run('Opening your workspace…', () => this.refresh());
     this.timer = setInterval(() => void this.refresh(), 1500);
+    void this.refreshTunnelStatus();
+    this.tunnelTimer = setInterval(() => void this.refreshTunnelStatus(), 1500);
   }
   ngOnDestroy() {
-    this.terminals.destroy(); this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer);
+    this.terminals.destroy(); this.loadingTasks.close(); this.appearance.destroy(); this.destroyed = true; this.controller.abort(); clearInterval(this.timer); clearInterval(this.tunnelTimer);
     window.removeEventListener('runtimebay:folder', this.folderListener);
     window.removeEventListener('keydown', this.keyListener);
     window.removeEventListener('runtimebay:command', this.commandListener);
+  }
+  private async refreshTunnelStatus() {
+    try {
+      const tunnels = await this.api<TunnelStatus[]>('/tunnels');
+      this.activeTunnelCount.set(tunnels.filter(tunnel => tunnel.state === 'running').length);
+      const unread = tunnels.filter(tunnel => tunnel.unreadError);
+      if (this.view() === 'tunnels' && unread.length) {
+        await this.acknowledgeTunnelErrors();
+        this.knownUnreadTunnelErrors.clear();
+        this.tunnelStatusReady = true;
+        return;
+      }
+      this.unreadTunnelErrorCount.set(unread.length);
+      const current = new Set(unread.map(tunnel => tunnel.definition.id));
+      if (this.tunnelStatusReady && this.view() !== 'tunnels') for (const tunnel of unread) {
+        if (this.knownUnreadTunnelErrors.has(tunnel.definition.id)) continue;
+        window.webkit?.messageHandlers.runtimeBay.postMessage({
+          action: 'tunnelFailure',
+          id: tunnel.definition.id,
+          title: tunnel.definition.name,
+          body: tunnel.error || 'The SSH tunnel exited unexpectedly.'
+        });
+      }
+      this.knownUnreadTunnelErrors = current;
+      this.tunnelStatusReady = true;
+    } catch { /* Workspace navigation remains available if tunnel status is temporarily offline. */ }
+  }
+  async openTunnels() {
+    this.view.set('tunnels');
+    await this.acknowledgeTunnelErrors();
+    void this.refreshTunnelStatus();
+  }
+  private async acknowledgeTunnelErrors() {
+    try {
+      await this.api('/tunnels/acknowledge', 'POST', {});
+      this.unreadTunnelErrorCount.set(0);
+    } catch { /* Keep the unread badge if the acknowledgement did not reach the engine. */ }
   }
   private async api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
     const response = await fetch('/api' + path, {

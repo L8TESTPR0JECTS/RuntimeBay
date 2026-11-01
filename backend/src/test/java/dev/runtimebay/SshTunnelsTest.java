@@ -43,4 +43,29 @@ class SshTunnelsTest {
         assertFalse(args.contains("-p"));
         assertTrue(args.stream().anyMatch(arg -> arg.startsWith("ControlPath=")));
     }
+
+    @Test void unexpectedTunnelFailuresRemainUnreadUntilAcknowledgedAcrossReload() throws Exception {
+        var registry = new HostRegistry(temporary);
+        var host = registry.save(null, "Helfer", "helfer", "alek", 22);
+        var hosts = new MachineHosts(registry, new HostTools());
+        var tunnels = new SshTunnels(temporary, hosts, null, temporary);
+        var saved = tunnels.save(null, "Processor", host.id(), 18098, "localhost", 8098, "helfer-remote");
+
+        tunnels.recordFailure(saved.definition().id(), "Broken pipe");
+        var failed = tunnels.list().getFirst();
+        assertEquals("error", failed.state());
+        assertTrue(failed.unreadError());
+        tunnels.close();
+
+        var restored = new SshTunnels(temporary, hosts, null, temporary);
+        assertTrue(restored.list().getFirst().unreadError());
+        assertEquals("Broken pipe", restored.list().getFirst().error());
+        restored.acknowledgeErrors();
+        assertFalse(restored.list().getFirst().unreadError());
+        restored.close();
+        var acknowledged = new SshTunnels(temporary, hosts, null, temporary);
+        assertFalse(acknowledged.list().getFirst().unreadError());
+        assertEquals("error", acknowledged.list().getFirst().state());
+        acknowledged.close(); hosts.close();
+    }
 }

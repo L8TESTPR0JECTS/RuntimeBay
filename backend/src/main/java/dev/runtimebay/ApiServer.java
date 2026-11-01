@@ -340,6 +340,7 @@ final class ApiServer implements AutoCloseable {
     private void routeTunnels(HttpExchange e, String[] parts) throws IOException {
         String method = e.getRequestMethod();
         if (parts.length == 2 && method.equals("GET")) { json(e, 200, tunnels.list()); return; }
+        if (parts.length == 3 && parts[2].equals("acknowledge") && method.equals("POST")) { body(e); tunnels.acknowledgeErrors(); json(e, 200, Map.of("acknowledged", true)); return; }
         if (parts.length == 2 && method.equals("POST")) {
             JsonObject value = body(e);
             json(e, 201, tunnels.save(null, string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"), string(value, "sshAlias"))); return;

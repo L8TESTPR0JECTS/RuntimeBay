@@ -4,7 +4,7 @@
     <button class="import-shortcut" (click)="openProject()"><span>＋</span> Import project <kbd>⌘ K</kbd></button>
     <button class="containers-nav" [class.selected]="view() === 'containers'" (click)="view.set('containers')"><span aria-hidden="true">▤</span> Containers <span>›</span></button>
     <button class="containers-nav" [class.selected]="view() === 'hosts'" (click)="view.set('hosts')"><span aria-hidden="true">⌘</span> Hosts <span>›</span></button>
-    <button class="containers-nav" [class.selected]="view() === 'tunnels'" (click)="view.set('tunnels')"><span aria-hidden="true">⇄</span> Tunnels <span>›</span></button>
+    <button class="containers-nav tunnels-nav" [class.selected]="view() === 'tunnels'" (click)="openTunnels()"><span aria-hidden="true">⇄</span><span class="nav-label">Tunnels</span>@if (activeTunnelCount()) { <span class="tunnel-nav-count active" [attr.aria-label]="activeTunnelCount() + ' active tunnels'">{{ activeTunnelCount() }}</span> }@if (unreadTunnelErrorCount()) { <span class="tunnel-nav-count failed" [attr.aria-label]="unreadTunnelErrorCount() + ' tunnel failures not viewed'">{{ unreadTunnelErrorCount() }}</span> }<span>›</span></button>
     <div class="sidebar-label">WORKFLOWS <span>{{ projects().length }}</span></div>
     <div class="workspace-items">
     <nav aria-label="Projects">
