@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, signal } fro
 import { FormsModule } from '@angular/forms';
 
 interface Host { id: string; name: string; local: boolean }
-interface Tunnel { definition: { id: string; name: string; hostId: string; localPort: number; remoteHost: string; remotePort: number }; hostName: string; state: 'running' | 'stopped' | 'error'; error: string | null }
+interface Tunnel { definition: { id: string; name: string; hostId: string; localPort: number; remoteHost: string; remotePort: number; sshAlias?: string | null }; hostName: string; state: 'running' | 'stopped' | 'error'; error: string | null }
 
 @Component({ selector: 'app-tunnels', standalone: true, imports: [FormsModule], templateUrl: './tunnels.html', styleUrl: './tunnels.css' })
 export class Tunnels implements OnInit, OnDestroy {
@@ -17,7 +17,7 @@ export class Tunnels implements OnInit, OnDestroy {
   modal = signal(false);
   editing = signal<Tunnel | null>(null);
   formError = signal('');
-  form = { name: '', hostId: '', localPort: 8080, remoteHost: 'localhost', remotePort: 80 };
+  form = { name: '', hostId: '', localPort: 8080, remoteHost: 'localhost', remotePort: 80, sshAlias: '' };
   private controller = new AbortController();
   private timer?: ReturnType<typeof setInterval>;
 
@@ -37,7 +37,7 @@ export class Tunnels implements OnInit, OnDestroy {
   }
   open(tunnel?: Tunnel) {
     this.editing.set(tunnel || null);
-    this.form = tunnel ? { ...tunnel.definition } : { name: '', hostId: this.hosts()[0]?.id || '', localPort: 8080, remoteHost: 'localhost', remotePort: 80 };
+    this.form = tunnel ? { ...tunnel.definition, sshAlias: tunnel.definition.sshAlias || '' } : { name: '', hostId: this.hosts()[0]?.id || '', localPort: 8080, remoteHost: 'localhost', remotePort: 80, sshAlias: '' };
     this.formError.set(''); this.modal.set(true);
   }
   close() { if (!this.saving()) this.modal.set(false); }

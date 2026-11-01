@@ -67,6 +67,9 @@ final class HostRegistry {
         return sshArguments(host, interactive, null);
     }
     static List<String> sshArguments(Host host, boolean interactive, Path controls) {
+        return sshArguments(host, interactive, controls, null);
+    }
+    static List<String> sshArguments(Host host, boolean interactive, Path controls, String sshAlias) {
         if (host.local()) throw new IllegalArgumentException("Local hosts do not use SSH");
         validate(host.name(), host.address(), host.user(), host.port());
         var args = new ArrayList<>(List.of("/usr/bin/ssh", interactive ? "-tt" : "-T", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2"));
@@ -75,8 +78,8 @@ final class HostRegistry {
             String identity = host.id().replaceAll("[^A-Za-z0-9]", "");
             args.addAll(List.of("-o", "ControlMaster=auto", "-o", "ControlPersist=no", "-o", "ControlPath=" + controls.resolve(identity.substring(0, Math.min(8, identity.length())) + "-%C")));
         }
-        if (host.port() != null) args.addAll(List.of("-p", host.port().toString()));
-        args.add("--"); args.add((host.user().isEmpty() ? "" : host.user() + "@") + host.address());
+        if ((sshAlias == null || sshAlias.isBlank()) && host.port() != null) args.addAll(List.of("-p", host.port().toString()));
+        args.add("--"); args.add(sshAlias == null || sshAlias.isBlank() ? (host.user().isEmpty() ? "" : host.user() + "@") + host.address() : sshAlias);
         return args;
     }
 }

@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 
 /** Saved SSH local-forward profiles. Credentials remain in the host credential store. */
 final class SshTunnels implements AutoCloseable {
-    record Definition(String id, String name, String hostId, int localPort, String remoteHost, int remotePort) {}
+    record Definition(String id, String name, String hostId, int localPort, String remoteHost, int remotePort, String sshAlias) {}
     record View(Definition definition, String hostName, String state, String error) {}
     private record Saved(int version, List<Definition> tunnels) {}
     private static final class Live {
@@ -39,14 +39,14 @@ final class SshTunnels implements AutoCloseable {
         return definitions.values().stream().map(this::view).toList();
     }
 
-    synchronized View save(String id, String name, String hostId, int localPort, String remoteHost, int remotePort) throws IOException {
-        validate(name, hostId, localPort, remoteHost, remotePort);
+    synchronized View save(String id, String name, String hostId, int localPort, String remoteHost, int remotePort, String sshAlias) throws IOException {
+        validate(name, hostId, localPort, remoteHost, remotePort, sshAlias);
         hosts.get(hostId);
         if ("local".equals(hostId)) throw new ApiException(400, "Choose a saved SSH host for this tunnel");
         if (id != null && !definitions.containsKey(id)) throw new ApiException(404, "Tunnel not found");
         for (Definition saved : definitions.values()) if (!saved.id().equals(id) && saved.localPort() == localPort)
             throw new ApiException(409, "Another saved tunnel already uses this local port");
-        Definition value = new Definition(id == null ? UUID.randomUUID().toString() : id, name.trim(), hostId, localPort, remoteHost.trim(), remotePort);
+        Definition value = new Definition(id == null ? UUID.randomUUID().toString() : id, name.trim(), hostId, localPort, remoteHost.trim(), remotePort, cleanAlias(sshAlias));
         Definition previous = definitions.get(id);
         if (previous != null && isRunning(id) && !previous.equals(value)) throw new ApiException(409, "Stop this tunnel before changing its connection details");
         definitions.put(value.id(), value);
@@ -77,7 +77,7 @@ final class SshTunnels implements AutoCloseable {
         errors.remove(id);
         HostRegistry.Host host = hosts.get(definition.hostId());
         passwords.restore(host);
-        List<String> command = new ArrayList<>(HostRegistry.sshArguments(host, false, controls));
+        List<String> command = new ArrayList<>(HostRegistry.sshArguments(host, false, controls, definition.sshAlias()));
         int destination = command.indexOf("--");
         command.addAll(destination, List.of("-N", "-o", "ExitOnForwardFailure=yes", "-o", "BatchMode=yes", "-L", "127.0.0.1:" + definition.localPort() + ":" + definition.remoteHost() + ":" + definition.remotePort()));
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -140,7 +140,7 @@ final class SshTunnels implements AutoCloseable {
             if (saved == null || saved.version() != 1 || saved.tunnels() == null || saved.tunnels().size() > 100) throw new IllegalArgumentException();
             for (Definition item : saved.tunnels()) {
                 if (item == null || item.id() == null || !item.id().equals(UUID.fromString(item.id()).toString()) || definitions.containsKey(item.id())) throw new IllegalArgumentException();
-                validate(item.name(), item.hostId(), item.localPort(), item.remoteHost(), item.remotePort());
+                validate(item.name(), item.hostId(), item.localPort(), item.remoteHost(), item.remotePort(), item.sshAlias());
                 hosts.get(item.hostId());
                 if (item.hostId().equals("local")) throw new IllegalArgumentException();
                 definitions.put(item.id(), item);
@@ -156,11 +156,16 @@ final class SshTunnels implements AutoCloseable {
         } finally { Files.deleteIfExists(temporary); }
     }
     static void validate(String name, String hostId, int localPort, String remoteHost, int remotePort) {
+        validate(name, hostId, localPort, remoteHost, remotePort, null);
+    }
+    static void validate(String name, String hostId, int localPort, String remoteHost, int remotePort, String sshAlias) {
         if (name == null || name.isBlank() || name.length() > 100 || name.chars().anyMatch(Character::isISOControl)) throw new ApiException(400, "Enter a tunnel name of up to 100 characters");
         if (hostId == null || !hostId.matches("[A-Za-z0-9-]{1,64}")) throw new ApiException(400, "Choose a saved SSH host");
         if (localPort < 1 || localPort > 65535 || remotePort < 1 || remotePort > 65535) throw new ApiException(400, "Ports must be whole numbers between 1 and 65535");
         if (remoteHost == null || !remoteHost.trim().matches("[A-Za-z0-9:][A-Za-z0-9_.:%-]{0,254}")) throw new ApiException(400, "Enter a valid destination hostname or IP address");
+        if (sshAlias != null && !sshAlias.isBlank() && !sshAlias.trim().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")) throw new ApiException(400, "Enter a valid SSH configuration alias");
     }
+    private static String cleanAlias(String alias) { return alias == null || alias.isBlank() ? null : alias.trim(); }
     private static String safeMessage(String message) {
         if (message == null || message.isBlank()) return "SSH exited before the tunnel became available. Check host access and local port availability.";
         String clean = message.replaceAll("(?i)(password|passphrase)\\s*[:=].*", "$1: [hidden]").strip();

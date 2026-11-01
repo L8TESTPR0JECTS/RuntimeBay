@@ -342,11 +342,11 @@ final class ApiServer implements AutoCloseable {
         if (parts.length == 2 && method.equals("GET")) { json(e, 200, tunnels.list()); return; }
         if (parts.length == 2 && method.equals("POST")) {
             JsonObject value = body(e);
-            json(e, 201, tunnels.save(null, string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"))); return;
+            json(e, 201, tunnels.save(null, string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"), string(value, "sshAlias"))); return;
         }
         if (parts.length == 3 && method.equals("PUT")) {
             JsonObject value = body(e);
-            json(e, 200, tunnels.save(parts[2], string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"))); return;
+            json(e, 200, tunnels.save(parts[2], string(value, "name"), string(value, "hostId"), integer(value, "localPort"), string(value, "remoteHost"), integer(value, "remotePort"), string(value, "sshAlias"))); return;
         }
         if (parts.length == 3 && method.equals("DELETE")) { tunnels.remove(parts[2]); json(e, 200, Map.of("removed", true)); return; }
         if (parts.length == 4 && parts[3].equals("start") && method.equals("POST")) { body(e); json(e, 200, tunnels.start(parts[2])); return; }
